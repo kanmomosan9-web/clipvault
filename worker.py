@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,28 @@ _forced_cpu = False
 
 CUDA_ERROR_HINTS = ("cublas", "cudnn", "cuda", "libcu", "no kernel image",
                     "out of memory", "device")
+
+HALLUCINATIONS = (
+    "ご視聴ありがとうございました", "ご清聴ありがとうございました",
+    "最後までご視聴", "チャンネル登録", "高評価", "字幕視聴者",
+    "thanks for watching", "subscribe", "www.", "http",
+)
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[\s、。，．,.!?！？・…\-ー]", "", text).lower()
+
+
+def _is_noise(text: str, prompt_norm: str) -> bool:
+    t = _norm(text)
+    if len(t) < 2:
+        return True
+    if any(h in t for h in (_norm(h) for h in HALLUCINATIONS)):
+        return True
+    # initial_prompt をそのまま復唱したものを捨てる
+    if prompt_norm and len(t) >= 4 and t in prompt_norm:
+        return True
+    return False
 
 
 def _register_cuda_dlls() -> None:
@@ -107,13 +130,18 @@ def _run(model, path: Path, prompt: str, language: str):
         vad_parameters={"min_silence_duration_ms": 400},
         initial_prompt=prompt, beam_size=5, condition_on_previous_text=False,
     )
-    out = []
+    prompt_norm = _norm(prompt)
+    out, dropped = [], 0
     for s in segments:
         text = s.text.strip()
-        if text:
-            out.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": text})
-    log.info("  language=%s prob=%.2f segments=%d",
-             info.language, info.language_probability, len(out))
+        if not text:
+            continue
+        if _is_noise(text, prompt_norm):
+            dropped += 1
+            continue
+        out.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": text})
+    log.info("  language=%s prob=%.2f segments=%d (filtered %d)",
+             info.language, info.language_probability, len(out), dropped)
     return " ".join(s["text"] for s in out), out
 
 

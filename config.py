@@ -69,7 +69,9 @@ API_ENABLED = os.getenv("API_ENABLED", "1") == "1"
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("PORT") or os.getenv("API_PORT") or "8787")
 
-BASE_PROMPT = "ゲームのプレイ中の実況と雑談です。"
+# 自然な文章をプロンプトに入れるとそのまま出力されやすい（幻覚）。
+# 語彙リストのみに留めること。既定は空。
+BASE_PROMPT = os.getenv("BASE_PROMPT", "")
 
 GAME_PROMPTS = {
     "LoL": "バロン、ドラゴン、ガンク、フラッシュ、ウルト、リコール、タワー、ミニオン、"
