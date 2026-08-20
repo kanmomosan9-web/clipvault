@@ -18,7 +18,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21b (cuda fallback + filename fix)"
+BUILD = "2026-08-21e (transcript in list view)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -173,6 +173,21 @@ async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
     await _sync_reactions(payload.message_id, payload.channel_id)
 
 
+def transcript_excerpt(clip_id: int, highlight: str = "", lines: int = 6,
+                       max_chars: int = 1000) -> str:
+    segs = db.get_segments(clip_id)
+    if not segs:
+        return ""
+    hit = [s for s in segs if highlight and highlight in s["text"]]
+    picked = (hit or segs)[:lines]
+    body = "\n".join(f"-# `{media.fmt_duration(s['start'])}` {s['text']}"
+                     for s in picked)[:max_chars]
+    rest = len(hit or segs) - len(picked)
+    if rest > 0:
+        body += f"\n-# … 他 {rest} 行"
+    return body
+
+
 class EditModal(discord.ui.Modal, title="クリップ情報を編集"):
     def __init__(self, clip_id: int, parent: "ClipView"):
         super().__init__()
@@ -213,13 +228,10 @@ class ClipView(discord.ui.View):
         segs = db.get_segments(self.clip_id)
         if not segs:
             return None
-        hit = [s for s in segs if self.highlight and self.highlight in s["text"]]
-        picked, name = (hit[:6], "🔍 該当箇所") if hit else (segs[:6], "🎙 文字起こし")
-        lines = [f"`{media.fmt_duration(s['start'])}` {s['text']}" for s in picked]
-        body = "\n".join(lines)[:1000]
-        if len(segs) > len(picked):
-            body += f"\n-# 他 {len(segs) - len(picked)} 行"
-        return name, body
+        hit = any(self.highlight and self.highlight in s["text"] for s in segs)
+        name = "🔍 該当箇所" if hit else "🎙 文字起こし"
+        body = transcript_excerpt(self.clip_id, self.highlight, lines=6)
+        return (name, body) if body else None
 
     async def _embed(self) -> tuple[discord.Embed, Optional[str]]:
         clip = db.get_clip(self.clip_id)
@@ -490,6 +502,11 @@ class ListView(discord.ui.LayoutView):
             body = (f"**{title}**\n{tagline}\n-# {media.fmt_duration(row['duration'])} · "
                     f"★{row['reactions']} · {row['uploader_name']} · "
                     f"{str(row['created_at'])[:10]}")
+
+            excerpt = transcript_excerpt(row["id"], self.query,
+                                         lines=config.LIST_TRANSCRIPT_LINES)
+            if excerpt:
+                body += "\n" + excerpt
 
             files.append(discord.File(
                 io.BytesIO(grid.tile_bytes(row, config.LIST_THUMB_WIDTH)),
