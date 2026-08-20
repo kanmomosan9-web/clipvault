@@ -25,6 +25,8 @@ GRID_COLS = 3
 DEFAULT_VIEW = "list"
 LIST_PAGE_SIZE = 3
 LIST_THUMB_WIDTH = 768
+# リスト表示に載せる文字起こしの行数（0 で非表示）
+LIST_TRANSCRIPT_LINES = int(os.getenv("LIST_TRANSCRIPT_LINES", "2"))
 
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
 
@@ -57,6 +59,22 @@ WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "float16")
 WHISPER_LANG = os.getenv("WHISPER_LANG", "ja")
 WORKER_POLL_SECONDS = int(os.getenv("WORKER_POLL_SECONDS", "10"))
 MAX_TRANSCRIBE_SECONDS = int(os.getenv("MAX_TRANSCRIBE_SECONDS", "900"))
+
+# VAD（無音除去）。既定値は faster-whisper の推奨に合わせる。
+# min_silence_duration_ms を小さくしすぎると息継ぎまで削り、発話が欠ける。
+VAD_FILTER = os.getenv("VAD_FILTER", "1") == "1"
+VAD_MIN_SILENCE_MS = int(os.getenv("VAD_MIN_SILENCE_MS", "2000"))
+VAD_THRESHOLD = float(os.getenv("VAD_THRESHOLD", "0.5"))
+VAD_SPEECH_PAD_MS = int(os.getenv("VAD_SPEECH_PAD_MS", "400"))
+
+
+def vad_parameters() -> dict:
+    return {
+        "min_silence_duration_ms": VAD_MIN_SILENCE_MS,
+        "threshold": VAD_THRESHOLD,
+        "speech_pad_ms": VAD_SPEECH_PAD_MS,
+    }
+
 
 PREFERRED_MODEL = os.getenv("PREFERRED_MODEL", "large-v3")
 WORKER_TIER = os.getenv("WORKER_TIER", "gpu")

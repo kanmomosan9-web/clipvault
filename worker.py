@@ -32,14 +32,35 @@ def _norm(text: str) -> str:
     return re.sub(r"[\s、。，．,.!?！？・…\-ー]", "", text).lower()
 
 
-def _is_noise(text: str, prompt_norm: str) -> bool:
+def _prompt_terms(prompt: str) -> list[str]:
+    return [_norm(t) for t in re.split(r"[、,]\s*", prompt) if _norm(t)]
+
+
+def _is_prompt_echo(text: str, terms: list[str]) -> bool:
+    """語彙リストを2語以上つなげて復唱した場合のみ True。
+
+    単語1つだけの一致は本物の発話でも起こりうるので除外しない
+    （例: 実際に「フラッシュ」とだけ叫んだ場合）。
+    """
+    if len(terms) < 2:
+        return False
+    hits = [t for t in terms if t and t in text]
+    if len(hits) < 2:
+        return False
+    # 語彙以外の文字がほとんど無ければ復唱とみなす
+    remainder = text
+    for t in sorted(hits, key=len, reverse=True):
+        remainder = remainder.replace(t, "")
+    return len(remainder) <= max(2, len(text) * 0.2)
+
+
+def _is_noise(text: str, terms: list[str]) -> bool:
     t = _norm(text)
     if len(t) < 2:
         return True
     if any(h in t for h in (_norm(h) for h in HALLUCINATIONS)):
         return True
-    # initial_prompt をそのまま復唱したものを捨てる
-    if prompt_norm and len(t) >= 4 and t in prompt_norm:
+    if _is_prompt_echo(t, terms):
         return True
     return False
 
@@ -126,17 +147,17 @@ def extract_audio(src: str, dest: Path) -> bool:
 
 def _run(model, path: Path, prompt: str, language: str):
     segments, info = model.transcribe(
-        str(path), language=language, vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 400},
+        str(path), language=language, vad_filter=config.VAD_FILTER,
+        vad_parameters=config.vad_parameters(),
         initial_prompt=prompt, beam_size=5, condition_on_previous_text=False,
     )
-    prompt_norm = _norm(prompt)
+    terms = _prompt_terms(prompt)
     out, dropped = [], 0
     for s in segments:
         text = s.text.strip()
         if not text:
             continue
-        if _is_noise(text, prompt_norm):
+        if _is_noise(text, terms):
             dropped += 1
             continue
         out.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": text})
