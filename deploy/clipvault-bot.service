@@ -1,0 +1,18 @@
+[Unit]
+Description=ClipVault Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clipvault
+EnvironmentFile=/home/ubuntu/clipvault/.env
+ExecStart=/home/ubuntu/clipvault/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

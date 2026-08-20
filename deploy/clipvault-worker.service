@@ -1,0 +1,25 @@
+[Unit]
+Description=ClipVault transcription worker (CPU fallback, keeps model resident)
+After=clipvault-bot.service
+Wants=clipvault-bot.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/clipvault
+EnvironmentFile=/home/ubuntu/clipvault/.env
+Environment=WORKER_TIER=cpu
+Environment=WHISPER_MODEL=small
+Environment=WHISPER_DEVICE=cpu
+Environment=WHISPER_COMPUTE=int8
+Environment=WORKER_GRACE_SECONDS=600
+Environment=WORKER_API_URL=
+ExecStart=/home/ubuntu/clipvault/.venv/bin/python worker.py --preload
+Restart=always
+RestartSec=30
+Nice=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
