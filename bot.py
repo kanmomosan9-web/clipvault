@@ -18,7 +18,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21e (transcript in list view)"
+BUILD = "2026-08-21f (collapsible transcript)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -464,6 +464,7 @@ class ListView(discord.ui.LayoutView):
         self.page = page
         self.rows: list = []
         self.total = 0
+        self.expanded: set[int] = set()
 
     def state(self) -> dict:
         return {"query": self.query, "tag_ids": self.tag_ids,
@@ -503,10 +504,15 @@ class ListView(discord.ui.LayoutView):
                     f"★{row['reactions']} · {row['uploader_name']} · "
                     f"{str(row['created_at'])[:10]}")
 
-            excerpt = transcript_excerpt(row["id"], self.query,
-                                         lines=config.LIST_TRANSCRIPT_LINES)
-            if excerpt:
-                body += "\n" + excerpt
+            segs = db.get_segments(row["id"])
+            is_open = row["id"] in self.expanded
+            matched = [x for x in segs if self.query and self.query in x["text"]]
+
+            if is_open:
+                body += "\n" + transcript_excerpt(
+                    row["id"], self.query, lines=config.LIST_TRANSCRIPT_LINES)
+            elif matched:
+                body += "\n" + transcript_excerpt(row["id"], self.query, lines=1)
 
             files.append(discord.File(
                 io.BytesIO(grid.tile_bytes(row, config.LIST_THUMB_WIDTH)),
@@ -527,6 +533,18 @@ class ListView(discord.ui.LayoutView):
                 await interaction.response.send_modal(EditModal(clip_id, self))
             edit.callback = on_edit
             bar.add_item(edit)
+
+            if segs:
+                toggle = discord.ui.Button(
+                    label="🎙 閉じる" if is_open else f"🎙 文字起こし ({len(segs)})",
+                    style=discord.ButtonStyle.secondary)
+
+                async def on_toggle(interaction: discord.Interaction, clip_id=row["id"]):
+                    self.expanded.symmetric_difference_update({clip_id})
+                    await self.show(interaction)
+                toggle.callback = on_toggle
+                bar.add_item(toggle)
+
             box.add_item(bar)
 
         box.add_item(discord.ui.Separator())

@@ -25,8 +25,8 @@ GRID_COLS = 3
 DEFAULT_VIEW = "list"
 LIST_PAGE_SIZE = 3
 LIST_THUMB_WIDTH = 768
-# リスト表示に載せる文字起こしの行数（0 で非表示）
-LIST_TRANSCRIPT_LINES = int(os.getenv("LIST_TRANSCRIPT_LINES", "2"))
+# リスト表示で「🎙 文字起こし」を展開したときに載せる行数
+LIST_TRANSCRIPT_LINES = int(os.getenv("LIST_TRANSCRIPT_LINES", "8"))
 
 VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v"}
 
