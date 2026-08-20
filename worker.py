@@ -1,0 +1,220 @@
+import asyncio
+import logging
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+import config
+import media
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("worker")
+
+_model = None
+_model_name = ""
+
+
+def load_model():
+    global _model, _model_name
+    if _model is not None:
+        return _model
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        raise SystemExit(
+            "faster-whisper が入っていません。\n"
+            "  pip install -r requirements-worker.txt")
+
+    log.info("loading %s on %s (%s) ...",
+             config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE)
+    try:
+        _model = WhisperModel(config.WHISPER_MODEL, device=config.WHISPER_DEVICE,
+                              compute_type=config.WHISPER_COMPUTE)
+    except Exception as e:
+        log.warning("GPU init failed (%s) - falling back to CPU/int8", e)
+        _model = WhisperModel(config.WHISPER_MODEL, device="cpu", compute_type="int8")
+    _model_name = config.WHISPER_MODEL
+    log.info("model ready")
+    return _model
+
+
+def extract_audio(src: str, dest: Path) -> bool:
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", src, "-vn",
+           "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(dest)]
+    try:
+        subprocess.run(cmd, capture_output=True, check=True, timeout=900)
+    except subprocess.CalledProcessError as e:
+        log.error("ffmpeg failed: %s", e.stderr.decode("utf-8", "ignore")[:300])
+        return False
+    except subprocess.TimeoutExpired:
+        log.error("ffmpeg timed out")
+        return False
+    return dest.exists() and dest.stat().st_size > 1000
+
+
+def transcribe(path: Path, prompt: str, language: str) -> tuple[str, list[dict]]:
+    model = load_model()
+    segments, info = model.transcribe(
+        str(path), language=language, vad_filter=True,
+        vad_parameters={"min_silence_duration_ms": 400},
+        initial_prompt=prompt, beam_size=5, condition_on_previous_text=False,
+    )
+    out = []
+    for s in segments:
+        text = s.text.strip()
+        if text:
+            out.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": text})
+    log.info("  language=%s prob=%.2f segments=%d",
+             info.language, info.language_probability, len(out))
+    return " ".join(s["text"] for s in out), out
+
+
+async def run_job(job: dict) -> dict:
+    log.info("job %s: %s (%.0fs, %s)", job["job_id"], job["filename"],
+             job.get("duration") or 0, job.get("game") or "-")
+
+    if job.get("duration") and job["duration"] > config.MAX_TRANSCRIBE_SECONDS:
+        return {"job_id": job["job_id"], "status": "skipped", "error": "too long"}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = Path(tmp) / "audio.wav"
+        if not await asyncio.to_thread(extract_audio, job["url"], wav):
+            return {"job_id": job["job_id"], "status": "failed",
+                    "error": "audio extraction failed"}
+        try:
+            text, segments = await asyncio.to_thread(
+                transcribe, wav, job.get("prompt", ""), job.get("language", "ja"))
+        except Exception as e:
+            log.exception("transcription error")
+            return {"job_id": job["job_id"], "status": "failed", "error": str(e)}
+
+    log.info("  %d chars / %d segments: %s", len(text), len(segments), text[:60])
+    return {"job_id": job["job_id"], "clip_id": job["clip_id"], "status": "done",
+            "text": text, "segments": segments, "model": _model_name}
+
+
+class RemoteRunner:
+    def __init__(self):
+        import aiohttp
+        self.aiohttp = aiohttp
+        self.base = config.WORKER_API_URL
+        self.headers = {"Authorization": f"Bearer {config.WORKER_TOKEN}"}
+
+    async def loop(self):
+        log.info("remote mode -> %s (tier=%s)", self.base, config.WORKER_TIER)
+        async with self.aiohttp.ClientSession(headers=self.headers) as sess:
+            while True:
+                try:
+                    job = await self.claim(sess)
+                except SystemExit:
+                    raise
+                except Exception as e:
+                    log.warning("claim failed (%s) - retrying in 30s", e)
+                    await asyncio.sleep(30)
+                    continue
+                if job is None:
+                    await asyncio.sleep(config.WORKER_POLL_SECONDS)
+                    continue
+                result = await run_job(job)
+                try:
+                    await self.report(sess, result)
+                except Exception as e:
+                    log.error("could not report result: %s", e)
+
+    async def claim(self, sess) -> Optional[dict]:
+        payload = {"tier": config.WORKER_TIER, "min_age": 0,
+                   "allow_upgrade": config.AUTO_UPGRADE}
+        async with sess.post(f"{self.base}/api/jobs/claim", json=payload,
+                             timeout=self.aiohttp.ClientTimeout(total=60)) as r:
+            if r.status == 401:
+                raise SystemExit("WORKER_TOKEN が一致しません")
+            r.raise_for_status()
+            return (await r.json()).get("job")
+
+    async def report(self, sess, result: dict):
+        async with sess.post(f"{self.base}/api/jobs/result", json=result,
+                             timeout=self.aiohttp.ClientTimeout(total=120)) as r:
+            r.raise_for_status()
+
+
+class LocalRunner:
+    def __init__(self):
+        import discord
+
+        import db
+        import dc
+        self.db, self.dc = db, dc
+        self.client = discord.Client(intents=discord.Intents.default())
+        self.client.event(self.on_ready)
+
+    async def on_ready(self):
+        log.info("local mode as %s (tier=%s, grace=%ss)",
+                 self.client.user, config.WORKER_TIER, config.WORKER_GRACE_SECONDS)
+        n = self.db.requeue_stuck()
+        if n:
+            log.info("requeued %d stuck job(s)", n)
+        self.client.loop.create_task(self.loop())
+
+    async def loop(self):
+        await asyncio.sleep(2)
+        while not self.client.is_closed():
+            job_row = self.db.claim_job(
+                min_age_seconds=config.WORKER_GRACE_SECONDS, tier=config.WORKER_TIER)
+            if job_row is None:
+                await asyncio.sleep(config.WORKER_POLL_SECONDS)
+                continue
+
+            clip = self.db.get_clip(job_row["clip_id"])
+            if clip is None:
+                self.db.finish_job(job_row["id"], "failed", "clip not found")
+                continue
+            url = await self.dc.fresh_attachment_url(self.client, clip)
+            if not url:
+                self.db.finish_job(job_row["id"], "failed",
+                                   "could not refresh attachment URL")
+                continue
+
+            game = self.db.game_tag(clip["id"])
+            job = {"job_id": job_row["id"], "clip_id": clip["id"],
+                   "filename": clip["filename"], "duration": clip["duration"],
+                   "game": game, "language": config.WHISPER_LANG, "url": url,
+                   "prompt": config.BASE_PROMPT + config.GAME_PROMPTS.get(game, "")}
+
+            result = await run_job(job)
+            if result["status"] == "done":
+                self.db.save_transcript(clip["id"], result["text"],
+                                        result["segments"], result["model"])
+                if not result["text"]:
+                    result["status"] = "empty"
+            self.db.finish_job(job_row["id"], result["status"], result.get("error", ""))
+
+    def run(self):
+        self.client.run(config.TOKEN, log_handler=None)
+
+
+def main():
+    if not media.check_ffmpeg():
+        raise SystemExit("ffmpeg / ffprobe が PATH にありません")
+    if "--preload" in sys.argv:
+        log.info("preloading model (also keeps memory resident on idle VMs)")
+        load_model()
+
+    if config.WORKER_API_URL:
+        if not config.WORKER_TOKEN:
+            raise SystemExit("WORKER_TOKEN が .env に設定されていません")
+        asyncio.run(RemoteRunner().loop())
+    else:
+        if not config.TOKEN:
+            raise SystemExit(
+                "DISCORD_TOKEN も WORKER_API_URL も未設定です。\n"
+                "  VM上で動かす場合: DISCORD_TOKEN を設定\n"
+                "  自宅PCで動かす場合: WORKER_API_URL と WORKER_TOKEN を設定")
+        import db
+        db.connect()
+        LocalRunner().run()
+
+
+if __name__ == "__main__":
+    main()

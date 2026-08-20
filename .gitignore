@@ -1,0 +1,32 @@
+# 秘密情報 - 絶対にコミットしない
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+oracle_vm*
+
+# データ（再生成不可なのでバックアップは別途取る）
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# 生成物
+preview_grid.png
+list_tile_*.jpg
+*.wav
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
