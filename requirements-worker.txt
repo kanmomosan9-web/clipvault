@@ -1,1 +1,5 @@
 faster-whisper>=1.0.0
+
+# Windows で GPU を使う場合に必要（Linux/CPU のみなら不要）
+nvidia-cublas-cu12; sys_platform == 'win32'
+nvidia-cudnn-cu12>=9,<10; sys_platform == 'win32'

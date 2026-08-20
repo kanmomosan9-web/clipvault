@@ -18,7 +18,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21a (hybrid workers + job API)"
+BUILD = "2026-08-21b (cuda fallback + filename fix)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -726,6 +726,29 @@ async def cmd_stats(interaction: discord.Interaction):
                     value=" ".join(f"`#{t['display']}({t['use_count']})`" for t in tags),
                     inline=False)
     await interaction.response.send_message(embed=e, ephemeral=True)
+
+
+@bot.tree.command(name="tagdelete", description="タグを削除します（クリップは消えません）")
+@app_commands.describe(tag="削除するタグ名")
+async def cmd_tagdelete(interaction: discord.Interaction, tag: str):
+    tid = db.resolve_tag(tag, create=False)
+    if tid is None:
+        await interaction.response.send_message(
+            f"`{tag}` というタグは見つかりませんでした。", ephemeral=True)
+        return
+    n = db.delete_tag(tid)
+    await interaction.response.send_message(
+        f"タグ `{tag}` を削除しました（{n} 件のクリップから外れました）。", ephemeral=True)
+
+
+@cmd_tagdelete.autocomplete("tag")
+async def tagdelete_autocomplete(interaction: discord.Interaction, current: str):
+    cur = db.normalize_tag(current)
+    rows = db.connect().execute(
+        "SELECT display, use_count FROM tags WHERE name LIKE ? "
+        "ORDER BY use_count DESC LIMIT 25", (f"%{cur}%",)).fetchall()
+    return [app_commands.Choice(name=f"#{r['display']} ({r['use_count']})", value=r["display"])
+            for r in rows]
 
 
 @bot.tree.command(name="alias", description="タグの別名を登録します（表記ゆれ対策）")

@@ -18,7 +18,25 @@ FILENAME_PATTERNS = [
     ),
 ]
 
-GENERIC_PREFIXES = {"medal", "outplayed", "clip", "replay", "recording", "desktop"}
+GENERIC_PREFIXES = {"medal", "outplayed", "clip", "replay", "recording", "desktop",
+                    "capture", "video", "highlight", "untitled", "screenrec"}
+
+JUNK_TOKENS = {"clip", "highlight", "replay", "capture", "recording", "video",
+               "untitled", "desktop", "full", "session", "part"}
+
+
+def _plausible_game(name: str) -> bool:
+    n = name.strip(" _-").strip()
+    if not n or len(n) > 28:
+        return False
+    if not re.search(r"[A-Za-z\u3040-\u30ff\u4e00-\u9fff]", n):
+        return False
+    if len(re.findall(r"\d", n)) >= 3:
+        return False
+    if re.search(r"\d{1,2}\s*(am|pm)", n, re.I):
+        return False
+    words = re.split(r"[^A-Za-z]+", n.lower())
+    return not any(w in JUNK_TOKENS for w in words if w)
 
 
 def parse_filename(name: str) -> dict:
@@ -35,14 +53,19 @@ def parse_filename(name: str) -> dict:
             raw_game = ""
         game = config.GAME_ALIASES.get(raw_game.lower(), raw_game)
         parts = m.groupdict()
+        year = int(parts["y"])
+        if not (2000 <= year <= datetime.now().year + 1):
+            continue
         try:
             rec = datetime(
-                int(parts["y"]), int(parts["mo"]), int(parts["d"]),
+                year, int(parts["mo"]), int(parts["d"]),
                 int(parts.get("h") or 0), int(parts.get("mi") or 0),
                 int(parts.get("s") or 0),
             ).isoformat()
         except (ValueError, TypeError):
-            rec = None
+            continue
+        if raw_game and not _plausible_game(raw_game):
+            game = ""
         return {"game": game, "recorded_at": rec, "title": ""}
     cleaned = re.sub(r"[_\-]+", " ", stem).strip()
     return {"game": "", "recorded_at": None, "title": cleaned[:80]}

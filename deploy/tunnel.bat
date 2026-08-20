@@ -1,7 +1,7 @@
 @echo off
 REM Opens an SSH tunnel from this PC to the ClipVault job API on the VM.
 REM Replace VMHOST with your VM's public IP.
-set VMHOST=ubuntu@123.45.67.89
+set VMHOST=ubuntu@129.225.11.4
 set KEY=%USERPROFILE%\.ssh\oracle_vm
 
 :loop

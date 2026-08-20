@@ -198,6 +198,19 @@ def get_tags(clip_id: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def delete_tag(tag_id: int) -> int:
+    c = connect()
+    clips = [r["clip_id"] for r in c.execute(
+        "SELECT clip_id FROM clip_tags WHERE tag_id = ?", (tag_id,))]
+    c.execute("DELETE FROM clip_tags WHERE tag_id = ?", (tag_id,))
+    c.execute("DELETE FROM tag_aliases WHERE tag_id = ?", (tag_id,))
+    c.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+    c.commit()
+    for cid in clips:
+        reindex(cid)
+    return len(clips)
+
+
 def popular_tags(limit: int = 25) -> list[sqlite3.Row]:
     c = connect()
     return c.execute(

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -14,12 +15,43 @@ log = logging.getLogger("worker")
 
 _model = None
 _model_name = ""
+_forced_cpu = False
+
+CUDA_ERROR_HINTS = ("cublas", "cudnn", "cuda", "libcu", "no kernel image",
+                    "out of memory", "device")
 
 
-def load_model():
+def _register_cuda_dlls() -> None:
+    if os.name != "nt":
+        return
+    import site
+    roots = []
+    for base in set(site.getsitepackages() + [site.getusersitepackages()]):
+        nv = Path(base) / "nvidia"
+        if nv.is_dir():
+            roots.extend(p for p in nv.glob("*/bin") if p.is_dir())
+    if not roots:
+        return
+    for d in roots:
+        try:
+            os.add_dll_directory(str(d))
+        except (OSError, AttributeError):
+            pass
+    os.environ["PATH"] = os.pathsep.join(
+        [str(d) for d in roots] + [os.environ.get("PATH", "")])
+    log.info("registered %d CUDA DLL directories", len(roots))
+
+
+def _looks_like_cuda_error(e: BaseException) -> bool:
+    msg = str(e).lower()
+    return any(h in msg for h in CUDA_ERROR_HINTS)
+
+
+def load_model(force_cpu: bool = False):
     global _model, _model_name
     if _model is not None:
         return _model
+    _register_cuda_dlls()
     try:
         from faster_whisper import WhisperModel
     except ImportError:
@@ -27,17 +59,32 @@ def load_model():
             "faster-whisper が入っていません。\n"
             "  pip install -r requirements-worker.txt")
 
-    log.info("loading %s on %s (%s) ...",
-             config.WHISPER_MODEL, config.WHISPER_DEVICE, config.WHISPER_COMPUTE)
+    device = "cpu" if (force_cpu or _forced_cpu) else config.WHISPER_DEVICE
+    compute = "int8" if device == "cpu" else config.WHISPER_COMPUTE
+    log.info("loading %s on %s (%s) ...", config.WHISPER_MODEL, device, compute)
     try:
-        _model = WhisperModel(config.WHISPER_MODEL, device=config.WHISPER_DEVICE,
-                              compute_type=config.WHISPER_COMPUTE)
+        _model = WhisperModel(config.WHISPER_MODEL, device=device, compute_type=compute)
     except Exception as e:
+        if device == "cpu":
+            raise
         log.warning("GPU init failed (%s) - falling back to CPU/int8", e)
         _model = WhisperModel(config.WHISPER_MODEL, device="cpu", compute_type="int8")
-    _model_name = config.WHISPER_MODEL
-    log.info("model ready")
+        device = "cpu"
+    _model_name = f"{config.WHISPER_MODEL}({device})" if device == "cpu" \
+        else config.WHISPER_MODEL
+    log.info("model ready (%s)", device)
     return _model
+
+
+def _fallback_to_cpu(reason: BaseException) -> None:
+    global _model, _forced_cpu
+    log.error("CUDA が使えません: %s", reason)
+    log.error("Windows の場合は次を実行してください:")
+    log.error("  pip install nvidia-cublas-cu12 \"nvidia-cudnn-cu12>=9,<10\"")
+    log.warning("以降は CPU で処理を継続します（大幅に遅くなります）")
+    _forced_cpu = True
+    _model = None
+    load_model(force_cpu=True)
 
 
 def extract_audio(src: str, dest: Path) -> bool:
@@ -54,8 +101,7 @@ def extract_audio(src: str, dest: Path) -> bool:
     return dest.exists() and dest.stat().st_size > 1000
 
 
-def transcribe(path: Path, prompt: str, language: str) -> tuple[str, list[dict]]:
-    model = load_model()
+def _run(model, path: Path, prompt: str, language: str):
     segments, info = model.transcribe(
         str(path), language=language, vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 400},
@@ -69,6 +115,16 @@ def transcribe(path: Path, prompt: str, language: str) -> tuple[str, list[dict]]
     log.info("  language=%s prob=%.2f segments=%d",
              info.language, info.language_probability, len(out))
     return " ".join(s["text"] for s in out), out
+
+
+def transcribe(path: Path, prompt: str, language: str) -> tuple[str, list[dict]]:
+    try:
+        return _run(load_model(), path, prompt, language)
+    except Exception as e:
+        if _forced_cpu or not _looks_like_cuda_error(e):
+            raise
+        _fallback_to_cpu(e)
+        return _run(load_model(), path, prompt, language)
 
 
 async def run_job(job: dict) -> dict:
