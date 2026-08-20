@@ -6,6 +6,7 @@ from aiohttp import web
 import config
 import db
 import dc
+import vocab
 
 log = logging.getLogger("api")
 
@@ -61,7 +62,7 @@ def build_app(client) -> web.Application:
             return web.json_response({"job": None})
 
         game = db.game_tag(clip["id"])
-        prompt = config.BASE_PROMPT + config.GAME_PROMPTS.get(game, "")
+        prompt = vocab.prompt_for(game)
         log.info("job %s handed to %s (clip %s)", job["id"], tier, clip["id"])
         return web.json_response({"job": {
             "job_id": job["id"],
@@ -70,6 +71,7 @@ def build_app(client) -> web.Application:
             "duration": clip["duration"],
             "game": game,
             "prompt": prompt,
+            "correct": vocab.uses_correction(game),
             "language": config.WHISPER_LANG,
             "url": url,
         }})

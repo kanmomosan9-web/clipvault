@@ -18,7 +18,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21f (collapsible transcript)"
+BUILD = "2026-08-21g (LoL vocabulary + correction)"
 
 intents = discord.Intents.default()
 intents.message_content = True

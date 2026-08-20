@@ -25,6 +25,7 @@ MARKERS = {
                   ("リモートモード", "class RemoteRunner")],
     "api.py": [("ジョブAPI", "def build_app")],
     "config.py": [("リスト表示の件数", "LIST_PAGE_SIZE")],
+    "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
 }
 
 OK, NG, WARN = "  OK  ", "  NG  ", " WARN "
@@ -123,6 +124,16 @@ def main():
     except Exception as e:
         line(WARN, "config 読み込み失敗", str(e))
 
+    print("\n--- 語彙 ---")
+    try:
+        import vocab
+        line(OK, "チャンピオン/アイテム/用語", f"{len(vocab.ALL_TERMS)} 語")
+        line(OK, "プロンプト候補", f"{len(vocab.PROMPT_TERMS)} 語")
+        line(OK, "呼び名", "、".join(vocab.MEMBERS[:6]) + " ...")
+        line(OK, "生成されるプロンプト", f"{len(vocab.prompt_for('LoL'))} 字")
+    except Exception as e:
+        line(WARN, "vocab 読み込み失敗", str(e))
+
     print("\n--- 文字起こし ---")
     try:
         import faster_whisper
@@ -188,7 +199,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21a (hybrid workers + job API)")
+        print("  INFO BUILD 2026-08-21g (LoL vocabulary + correction)")
     print()
 
 

@@ -34,8 +34,11 @@ fi
 echo
 echo "--- 外向き通信 ---"
 for host in discord.com cdn.discordapp.com huggingface.co; do
-  if curl -s --max-time 8 -o /dev/null -w '%{http_code}' "https://$host" | grep -qE '^[123]'; then
-    line "$OK" "$host"
+  code=$(curl -s --max-time 8 -o /dev/null -w '%{http_code}' "https://$host" 2>/dev/null)
+  # 4xx/5xx でも「HTTP 応答が返る = 到達できている」ので成功扱い。
+  # 000 は接続そのものが失敗した場合のみ。
+  if [ -n "$code" ] && [ "$code" != "000" ]; then
+    line "$OK" "$host" "HTTP $code"
   else
     line "$NG" "$host に到達できない" "エグレスルールが 0.0.0.0/0 All か確認"
     fail=1

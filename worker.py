@@ -10,6 +10,7 @@ from typing import Optional
 
 import config
 import media
+import vocab
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("worker")
@@ -195,6 +196,18 @@ async def run_job(job: dict) -> dict:
             log.exception("transcription error")
             return {"job_id": job["job_id"], "status": "failed", "error": str(e)}
 
+    if job.get("correct", True) and config.VOCAB_CORRECT and segments:
+        fixed = 0
+        for seg in segments:
+            new, changes = vocab.correct(seg["text"])
+            if changes:
+                fixed += len(changes)
+                log.info("  補正: %s", ", ".join(f"{a}→{b}" for a, b in changes))
+                seg["text"] = new
+        if fixed:
+            text = " ".join(s["text"] for s in segments)
+            log.info("  %d 箇所を語彙補正", fixed)
+
     log.info("  %d chars / %d segments: %s", len(text), len(segments), text[:60])
     return {"job_id": job["job_id"], "clip_id": job["clip_id"], "status": "done",
             "text": text, "segments": segments, "model": _model_name}
@@ -285,7 +298,8 @@ class LocalRunner:
             job = {"job_id": job_row["id"], "clip_id": clip["id"],
                    "filename": clip["filename"], "duration": clip["duration"],
                    "game": game, "language": config.WHISPER_LANG, "url": url,
-                   "prompt": config.BASE_PROMPT + config.GAME_PROMPTS.get(game, "")}
+                   "correct": vocab.uses_correction(game),
+                   "prompt": vocab.prompt_for(game)}
 
             result = await run_job(job)
             if result["status"] == "done":

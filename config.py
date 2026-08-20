@@ -91,6 +91,11 @@ API_PORT = int(os.getenv("PORT") or os.getenv("API_PORT") or "8787")
 # 語彙リストのみに留めること。既定は空。
 BASE_PROMPT = os.getenv("BASE_PROMPT", "")
 
+# vocab.py の語彙を使うゲーム（プロンプト生成と認識結果の補正）
+VOCAB_GAMES = {g for g in os.getenv("VOCAB_GAMES", "LoL,TFT,").split(",")}
+VOCAB_CORRECT = os.getenv("VOCAB_CORRECT", "1") == "1"
+PROMPT_MAX_CHARS = int(os.getenv("PROMPT_MAX_CHARS", "170"))
+
 GAME_PROMPTS = {
     "LoL": "バロン、ドラゴン、ガンク、フラッシュ、ウルト、リコール、タワー、ミニオン、"
            "レーン、ジャングル、ミッド、トップ、ボット、サポート、集団戦、オブジェクト、"
