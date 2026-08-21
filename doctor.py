@@ -26,6 +26,8 @@ MARKERS = {
     "api.py": [("ジョブAPI", "def build_app")],
     "config.py": [("リスト表示の件数", "LIST_PAGE_SIZE")],
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
+    "webui.py": [("Web API", "def add_routes")],
+    "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
 }
 
 OK, NG, WARN = "  OK  ", "  NG  ", " WARN "
@@ -124,6 +126,22 @@ def main():
     except Exception as e:
         line(WARN, "config 読み込み失敗", str(e))
 
+    print("\n--- Web ライブラリ ---")
+    try:
+        import config as cfg2
+        if not cfg2.WEB_ENABLED:
+            line(WARN, "無効", "WEB_ENABLED=0")
+        elif not cfg2.PUBLIC_URL:
+            line(NG, "PUBLIC_URL 未設定", "/library がリンクを発行できません")
+        else:
+            line(OK, "公開URL", cfg2.PUBLIC_URL)
+            line(OK, "トークン有効期限", f"{cfg2.WEB_TOKEN_DAYS} 日")
+        idx = HERE / "web" / "index.html"
+        line(OK if idx.exists() else NG, "web/index.html",
+             f"{idx.stat().st_size // 1024} KB" if idx.exists() else "見つからない")
+    except Exception as e:
+        line(WARN, "Web 設定の確認をスキップ", str(e))
+
     print("\n--- 語彙 ---")
     try:
         import vocab
@@ -199,7 +217,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21g (LoL vocabulary + correction)")
+        print("  INFO BUILD 2026-08-21h (web library)")
     print()
 
 

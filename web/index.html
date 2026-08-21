@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipVault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A1015; --surface:#131A22; --surface-2:#1A232D;
+  --line:#22303C; --gold:#C8AA6E; --gold-dim:#6B5B3B;
+  --teal:#0AC8B9; --text:#F0E6D2; --muted:#78899A;
+  --cut:10px;
+  --sans:"Noto Sans JP",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;
+  line-height:1.6;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:none;cursor:pointer}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line)}
+::-webkit-scrollbar-track{background:transparent}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+.cut{clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+.cut-frame{position:relative;background:var(--gold-dim)}
+.cut-frame>*{position:relative;z-index:1}
+.cut-frame::after{content:"";position:absolute;inset:1px;background:var(--surface);
+  clip-path:polygon(calc(var(--cut) - 1px) 0,100% 0,100% calc(100% - var(--cut) + 1px),calc(100% - var(--cut) + 1px) 100%,0 100%,0 calc(var(--cut) - 1px))}
+
+header{flex:0 0 auto;display:flex;align-items:center;gap:20px;padding:0 22px;height:56px;
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0D141B,#0A1015)}
+.mark{font-family:"Cinzel",serif;font-weight:600;font-size:18px;letter-spacing:.14em;color:var(--gold);white-space:nowrap}
+.mark span{color:var(--text)}
+.search{flex:1;max-width:520px;position:relative}
+.search input{width:100%;height:34px;padding:0 12px 0 34px;background:var(--surface);
+  border:1px solid var(--line);font-size:13px;outline:none;transition:border-color .15s}
+.search input:focus{border-color:var(--gold-dim)}
+.search svg{position:absolute;left:11px;top:9px;width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:2}
+.me{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;
+  background:var(--gold-dim);color:var(--text);font-weight:700;flex:0 0 auto}
+
+main{flex:1;display:flex;min-height:0}
+aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:18px 0 40px;background:#0C131A}
+.rail-h{font-size:10px;letter-spacing:.18em;color:var(--muted);padding:0 18px;margin:18px 0 8px}
+.rail-h:first-child{margin-top:0}
+.tag{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 18px;
+  font-size:13px;color:var(--muted);border-left:2px solid transparent;transition:.12s}
+.tag:hover{color:var(--text);background:#10171E}
+.tag[aria-pressed="true"]{color:var(--gold);border-left-color:var(--gold);background:#121A22}
+.tag em{margin-left:auto;font-family:var(--mono);font-size:11px;font-style:normal;opacity:.6}
+.stage{flex:1;overflow-y:auto;padding:22px 24px 60px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:20px}
+.card{--cut:12px;display:block;text-align:left;width:100%}
+.thumb{position:relative;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--line);transition:.18s}
+.card:hover .thumb{border-color:var(--gold);transform:translateY(-2px)}
+.thumb i{position:absolute;inset:0;transition:transform .5s}
+.card:hover .thumb i{transform:scale(1.06)}
+.scan{position:absolute;inset:0;opacity:0;transition:opacity .18s;
+  background:linear-gradient(180deg,transparent 55%,rgba(10,16,21,.92))}
+.card:hover .scan{opacity:1}
+.badge,.star{position:absolute;bottom:7px;padding:1px 6px;background:rgba(5,8,11,.86);font-family:var(--mono);font-size:11px}
+.badge{right:7px}.star{left:7px;color:var(--gold)}
+.said{position:absolute;left:0;right:0;bottom:26px;padding:0 9px;opacity:0;transform:translateY(4px);
+  transition:.2s;font-size:12px;text-shadow:0 1px 4px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card:hover .said{opacity:1;transform:none}
+.meta{padding:9px 2px 0}
+.title{font-size:14px;font-weight:500;line-height:1.4;margin-bottom:3px}
+.sub{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.chips{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chip{font-size:11px;color:var(--gold);border:1px solid var(--gold-dim);padding:0 6px;line-height:17px;white-space:nowrap}
+.empty{padding:70px 10px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px;font-weight:500}
+
+.player{display:none}.player.on{display:block}
+.back{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;margin-bottom:16px}
+.back:hover{color:var(--gold)}
+.pwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
+.screen{position:relative;aspect-ratio:16/9;background:#05080B;border:1px solid var(--line);overflow:hidden}
+.screen video{width:100%;height:100%;display:block;background:#05080B}
+.screen:empty::after{content:"読み込み中";position:absolute;inset:0;display:grid;
+  place-items:center;color:var(--muted);font-size:12px}
+
+
+
+.bar{height:6px;background:#151E27;position:relative;margin-top:2px;border:1px solid var(--line);border-top:none}
+
+.marks{position:absolute;inset:0;pointer-events:none}
+.marks u{position:absolute;width:2px;background:var(--teal);opacity:.8;top:0;height:100%}
+.marks u.cmark{background:var(--text);opacity:.9;top:50%;height:50%}
+
+
+
+
+
+.pinfo{margin-top:16px}
+.prow a{color:var(--teal);text-decoration:none;font-size:12px}
+.prow a:hover{color:var(--gold)}
+.tchip.game{background:#1E1A12;border-color:var(--gold);color:var(--gold)}
+.rx.dc{cursor:default;color:var(--gold)}
+.cm-h .del{font-size:10.5px;color:var(--muted);margin-left:8px}
+.cm-h .del:hover{color:#C4433B}
+.cm-h span{margin-left:auto}
+.thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.card:hover .thumb img{transform:scale(1.06)}
+.said .tc{color:var(--teal);font-family:var(--mono)}
+.count{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.count b{color:var(--gold);font-weight:400}
+#sort{height:30px;background:var(--surface);border:1px solid var(--line);
+  color:var(--text);font-size:12.5px;padding:0 6px;outline:none}
+#sort:focus{border-color:var(--gold-dim)}
+.pinfo h1{font-size:20px;font-weight:700;line-height:1.35;margin-bottom:10px}
+.prow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+
+.reacts{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;align-items:center}
+.rx{display:flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);
+  background:var(--surface);font-size:13px;transition:.12s;line-height:20px}
+.rx:hover{border-color:var(--gold-dim)}
+.rx b{font-family:var(--mono);font-size:11.5px;font-weight:400;color:var(--muted)}
+.rx[aria-pressed="true"]{border-color:var(--gold);background:#1E1A12}
+.rx[aria-pressed="true"] b{color:var(--gold)}
+.rx-add{color:var(--muted);padding:3px 10px;border:1px dashed var(--line);font-size:13px;line-height:20px}
+.rx-add:hover{color:var(--gold);border-color:var(--gold-dim)}
+.picker{display:none;gap:5px;margin-top:8px;flex-wrap:wrap}
+.picker.on{display:flex}
+.picker button{font-size:17px;padding:3px 7px;border:1px solid var(--line);background:var(--surface)}
+.picker button:hover{border-color:var(--gold)}
+
+.tagline{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px}
+.tchip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--gold);
+  border:1px solid var(--gold-dim);padding:1px 7px;line-height:19px}
+.tchip button{color:var(--gold-dim);font-size:13px;line-height:1;padding:0 1px}
+.tchip button:hover{color:var(--text)}
+.tadd{position:relative}
+.tadd>button{font-size:11.5px;color:var(--muted);border:1px dashed var(--line);padding:1px 9px;line-height:19px}
+.tadd>button:hover{color:var(--gold);border-color:var(--gold-dim)}
+.tbox{display:none;position:absolute;left:0;top:26px;z-index:5;width:210px;
+  border:1px solid var(--gold-dim);background:var(--surface)}
+.tbox.on{display:block}
+.tbox input{width:100%;height:30px;padding:0 9px;background:var(--surface-2);border:none;
+  border-bottom:1px solid var(--line);font-size:12.5px;outline:none}
+.tbox .list{max-height:170px;overflow-y:auto}
+.tbox .list button{display:flex;width:100%;gap:8px;padding:5px 9px;font-size:12.5px;text-align:left;color:var(--muted)}
+.tbox .list button:hover{background:var(--surface-2);color:var(--text)}
+.tbox .list button em{margin-left:auto;font-family:var(--mono);font-size:11px;font-style:normal;opacity:.6}
+.tbox .list button.new{color:var(--teal)}
+
+.rail{--cut:12px}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;padding:10px 6px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--gold);border-bottom-color:var(--gold)}
+.tabs button b{font-family:var(--mono);font-weight:400;font-size:11px;opacity:.7;margin-left:4px}
+.pane{display:none;padding:12px 14px;max-height:56vh;overflow-y:auto}
+.pane.on{display:block}
+.line{display:flex;gap:10px;width:100%;text-align:left;padding:5px 7px;border-left:2px solid transparent;transition:.12s}
+.line:hover{background:var(--surface-2)}
+.line.now{background:var(--surface-2);border-left-color:var(--gold)}
+.line time{font-family:var(--mono);font-size:11.5px;color:var(--teal);flex:0 0 auto;padding-top:1px}
+.line.now time{color:var(--gold)}
+.line p{font-size:13px;line-height:1.55}
+mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
+
+.cm{display:flex;gap:9px;padding:8px 4px;border-bottom:1px solid #182029}
+.cm-b{min-width:0;flex:1}
+.cm-h{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+.cm-h strong{font-size:12.5px;font-weight:500}
+.cm-h .jump{font-family:var(--mono);font-size:11px;color:var(--teal)}
+.cm-h .jump:hover{color:var(--gold)}
+.cm-h span{margin-left:auto;font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.cm-b p{font-size:13px;line-height:1.6;word-break:break-word}
+.none{padding:18px 4px;color:var(--muted);font-size:12.5px}
+.compose{margin-top:12px;border-top:1px solid var(--line);padding-top:11px}
+.compose textarea{width:100%;min-height:52px;resize:vertical;background:var(--surface-2);
+  border:1px solid var(--line);padding:8px 9px;font-size:13px;outline:none;font-family:var(--sans)}
+.compose textarea:focus{border-color:var(--gold-dim)}
+.crow2{display:flex;align-items:center;gap:9px;margin-top:8px}
+.stamp{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);cursor:pointer;user-select:none}
+.stamp input{accent-color:var(--gold)}
+.stamp b{font-family:var(--mono);color:var(--teal);font-weight:400}
+.send{margin-left:auto;padding:5px 14px;border:1px solid var(--gold-dim);color:var(--gold);font-size:12.5px}
+.send:hover:not(:disabled){background:#1E1A12;border-color:var(--gold)}
+.send:disabled{opacity:.4;cursor:default}
+.hint{margin-top:12px;padding:9px 11px;border-left:2px solid var(--gold-dim);
+  font-size:11.5px;color:var(--muted);background:#0F161D}
+.sync{color:var(--teal)}
+
+@media(max-width:900px){aside{display:none}.pwrap{grid-template-columns:1fr}.pane{max-height:340px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark">CLIP<span>VAULT</span></div>
+  <div class="search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="q" placeholder="タイトル・タグ・セリフ・コメントを検索" autocomplete="off">
+  </div>
+  <select id="sort" title="並び替え">
+    <option value="new">新着順</option><option value="hot">人気順</option>
+    <option value="old">古い順</option><option value="long">長い順</option>
+    <option value="short">短い順</option>
+  </select>
+  <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
+  <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
+</header>
+
+<main>
+  <aside>
+    <div class="rail-h">GAME</div><div id="games"></div>
+    <div class="rail-h">TAG</div><div id="tags"></div>
+    <div class="rail-h">MEMBER</div><div id="members"></div>
+  </aside>
+
+  <div class="stage">
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" hidden><b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。</div>
+
+    <section id="player" class="player">
+      <button class="back" id="back">◀ 一覧へ戻る</button>
+      <div class="pwrap">
+        <div>
+          <div class="screen" id="screen"></div>
+          <div class="bar" id="barwrap"><div class="marks" id="marks"></div></div>
+
+          <div class="pinfo">
+            <h1 id="ptitle"></h1>
+            <div class="prow"><span id="pmeta"></span><a id="jump" target="_blank" rel="noopener">Discord で開く ↗</a></div>
+            <div class="tagline" id="tagline"></div>
+            <div class="reacts" id="reacts"></div>
+            <div class="picker" id="picker"></div>
+          </div>
+        </div>
+
+        <div class="rail cut-frame">
+          <div class="tabs">
+            <button id="tab-t" aria-selected="true">文字起こし<b id="n-t"></b></button>
+            <button id="tab-c" aria-selected="false">コメント<b id="n-c"></b></button>
+          </div>
+          <div class="pane on" id="pane-t">
+            <div id="lines"></div>
+            <div class="hint">行をクリックするとその瞬間から再生されます。</div>
+          </div>
+          <div class="pane" id="pane-c">
+            <div id="cms"></div>
+            <div class="compose">
+              <textarea id="ctext" placeholder="コメントを書く" rows="2"></textarea>
+              <div class="crow2">
+                <label class="stamp"><input type="checkbox" id="cstamp" checked>時刻をつける <b id="cnow">0:00</b></label>
+                <button class="send" id="csend" disabled>送信</button>
+              </div>
+              <div class="hint"><span class="sync">⇄</span> Discordのスレッドにも同じ内容が投稿されます。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const API={
+  async get(u){const r=await fetch(u,{credentials:"same-origin"});
+    if(r.status===401)throw new Error("unauthorized");
+    if(!r.ok)throw new Error(await r.text());return r.json()},
+  async send(m,u,b){const r=await fetch(u,{method:m,credentials:"same-origin",
+      headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
+    if(!r.ok)throw new Error(await r.text());return r.json()},
+};
+const PALETTE=["🔥","😂","👏","😱","💀","🧠","🎯","❤️"];
+const mmss=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+const $=i=>document.getElementById(i);
+const esc=s=>String(s??"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+const hi=s=>{if(!query)return esc(s);
+  const re=new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi");
+  return esc(s).replace(re,m=>`<mark>${m}</mark>`)};
+const ago=iso=>{const d=(Date.now()-new Date(iso))/1000;
+  if(d<60)return"たった今";if(d<3600)return`${Math.floor(d/60)}分前`;
+  if(d<86400)return`${Math.floor(d/3600)}時間前`;
+  if(d<2592000)return`${Math.floor(d/86400)}日前`;return iso.slice(0,10)};
+
+let ME={name:"?"},query="",filters={game:null,tag:null,by:null},
+    items=[],cur=null,vid=null,timer=null;
+
+async function boot(){
+  try{ME=await API.get("/api/me")}catch(e){return fail()}
+  $("who").textContent=ME.name;$("avme").textContent=ME.name[0];
+  await facets();await load();
+}
+function fail(){
+  document.body.innerHTML=`<div style="margin:auto;padding:60px 24px;max-width:440px;text-align:center">
+    <div style="font-family:Cinzel,serif;color:#C8AA6E;letter-spacing:.14em;margin-bottom:14px">CLIPVAULT</div>
+    <p style="color:#F0E6D2;margin-bottom:8px">リンクの有効期限が切れています</p>
+    <p style="color:#78899A;font-size:13px">Discord で <code>/library</code> を実行して、新しいリンクを取得してください。</p>
+  </div>`;
+}
+
+async function facets(){
+  const f=await API.get("/api/facets");
+  const mk=(host,rows,key)=>{host.innerHTML="";rows.forEach(o=>{
+    const b=document.createElement("button");b.className="tag";
+    b.setAttribute("aria-pressed",filters[key]===o.name);
+    b.innerHTML=`<span>${esc(o.name)}</span><em>${o.count}</em>`;
+    b.onclick=()=>{filters[key]=filters[key]===o.name?null:o.name;load()};
+    host.appendChild(b)})};
+  mk($("games"),f.games,"game");mk($("tags"),f.tags,"tag");mk($("members"),f.members,"by");
+  window.TAGS=f.tags;
+}
+
+function qs(){
+  const p=new URLSearchParams();
+  if(query)p.set("q",query);
+  if(filters.game)p.set("game",filters.game);
+  if(filters.tag)p.append("tag",filters.tag);
+  if(filters.by)p.set("by",filters.by);
+  p.set("sort",$("sort").value);p.set("limit","60");
+  return p.toString();
+}
+
+async function load(){
+  const d=await API.get("/api/clips?"+qs());
+  items=d.items;$("n").textContent=d.items.length;$("ntotal").textContent=d.total;
+  const g=$("grid");g.innerHTML="";$("empty").hidden=items.length>0;
+  items.forEach(c=>{
+    const b=document.createElement("button");b.className="card";
+    b.innerHTML=`<div class="thumb cut">
+      <img src="${c.thumb}" alt="" loading="lazy"><div class="scan"></div>
+      <span class="star">★${c.stars}</span><span class="badge">${mmss(c.duration)}</span>
+      <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
+      <div class="meta"><div class="title">${hi(c.title)}</div>
+      <div class="sub">${esc(c.by)} · ${c.date}${c.comments?" · 💬"+c.comments:""}</div>
+      <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
+        c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>`;
+    b.onclick=()=>openClip(c.id);g.appendChild(b)});
+}
+
+async function openClip(id){
+  cur=await API.get("/api/clips/"+id);
+  $("grid").hidden=true;$("empty").hidden=true;$("player").classList.add("on");
+  $("ptitle").textContent=cur.title;
+  $("pmeta").textContent=`${cur.by} · ${cur.date} · ${cur.width}x${cur.height} · ${mmss(cur.duration)}`;
+  $("jump").href=cur.jump;
+  const box=$("screen");box.innerHTML="";
+  vid=document.createElement("video");
+  vid.src=cur.media;vid.poster=cur.thumb;vid.controls=true;vid.autoplay=true;
+  vid.playsInline=true;vid.preload="metadata";
+  vid.ontimeupdate=sync;vid.onloadedmetadata=drawMarks;
+  box.appendChild(vid);
+  drawTags();drawReacts();drawLines();drawComments();drawMarks();tab("t");
+}
+function closeClip(){
+  if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
+  $("player").classList.remove("on");$("grid").hidden=false;facets();load();
+}
+const seek=t=>{if(!vid)return;vid.currentTime=t;vid.play().catch(()=>{})};
+
+function drawMarks(){
+  const d=(vid&&vid.duration)||cur.duration||1;
+  $("marks").innerHTML=
+    cur.segments.map(s=>`<u style="left:${s.start/d*100}%"></u>`).join("")+
+    cur.comments.filter(c=>c.at!=null).map(c=>`<u class="cmark" style="left:${c.at/d*100}%"></u>`).join("");
+}
+async function saveTags(){
+  const r=await API.send("PUT",`/api/clips/${cur.id}/tags`,{tags:cur.tags});
+  cur.tags=r.tags.filter(t=>t!==cur.game);drawTags();facets();
+}
+function drawTags(){
+  const h=$("tagline");h.innerHTML="";
+  if(cur.game){const g=document.createElement("span");g.className="tchip game";
+    g.textContent=cur.game;h.appendChild(g)}
+  cur.tags.forEach(t=>{
+    const s=document.createElement("span");s.className="tchip";
+    s.innerHTML=`${esc(t)}<button title="外す">×</button>`;
+    s.querySelector("button").onclick=()=>{cur.tags=cur.tags.filter(x=>x!==t);saveTags()};
+    h.appendChild(s)});
+  const w=document.createElement("span");w.className="tadd";
+  w.innerHTML=`<button>＋ タグ</button><div class="tbox"><input placeholder="入力して選択"><div class="list"></div></div>`;
+  const btn=w.querySelector("button"),box=w.querySelector(".tbox"),
+        inp=w.querySelector("input"),list=w.querySelector(".list");
+  const fill=()=>{
+    const v=inp.value.trim();list.innerHTML="";
+    (window.TAGS||[]).filter(o=>!cur.tags.includes(o.name)&&(!v||o.name.includes(v)))
+      .slice(0,12).forEach(o=>{const b=document.createElement("button");
+        b.innerHTML=`<span>${esc(o.name)}</span><em>${o.count}</em>`;
+        b.onclick=()=>{cur.tags.push(o.name);saveTags()};list.appendChild(b)});
+    if(v&&!(window.TAGS||[]).some(o=>o.name===v)){
+      const b=document.createElement("button");b.className="new";
+      b.textContent=`＋ 新規作成: ${v}`;
+      b.onclick=()=>{cur.tags.push(v);saveTags()};list.appendChild(b)}};
+  btn.onclick=e=>{e.stopPropagation();if(box.classList.toggle("on")){fill();inp.focus()}};
+  inp.oninput=fill;inp.onclick=e=>e.stopPropagation();
+  h.appendChild(w);
+}
+function drawReacts(){
+  const h=$("reacts");h.innerHTML="";
+  Object.entries(cur.reactions).forEach(([e,us])=>{
+    const mine=us.some(u=>u.id===ME.id);
+    const b=document.createElement("button");b.className="rx";
+    b.setAttribute("aria-pressed",mine);b.title=us.map(u=>u.name).join("、");
+    b.innerHTML=`${e}<b>${us.length}</b>`;
+    b.onclick=async()=>{const r=await API.send("POST",`/api/clips/${cur.id}/reactions`,{emoji:e});
+      cur.reactions=r.reactions;drawReacts()};
+    h.appendChild(b)});
+  if(cur.discord_stars){
+    const s=document.createElement("span");s.className="rx dc";
+    s.title="Discord のメッセージに付いたリアクション";
+    s.innerHTML=`★<b>${cur.discord_stars}</b>`;h.appendChild(s)}
+  const a=document.createElement("button");a.className="rx-add";a.textContent="＋";
+  a.onclick=e=>{e.stopPropagation();$("picker").classList.toggle("on")};h.appendChild(a);
+  const p=$("picker");p.innerHTML="";p.classList.remove("on");
+  PALETTE.forEach(e=>{const b=document.createElement("button");b.textContent=e;
+    b.onclick=async()=>{const r=await API.send("POST",`/api/clips/${cur.id}/reactions`,{emoji:e});
+      cur.reactions=r.reactions;p.classList.remove("on");drawReacts()};p.appendChild(b)});
+}
+function drawLines(){
+  $("n-t").textContent=cur.segments.length;
+  const h=$("lines");h.innerHTML="";
+  if(!cur.segments.length){h.innerHTML=`<div class="none">${
+    cur.has_transcript?"この動画にセリフは検出されませんでした。":"まだ文字起こしされていません。"}</div>`;return}
+  cur.segments.forEach(s=>{const b=document.createElement("button");b.className="line";
+    b.innerHTML=`<time>${mmss(s.start)}</time><p>${hi(s.text)}</p>`;
+    b.onclick=()=>seek(s.start);h.appendChild(b)});
+}
+function drawComments(){
+  $("n-c").textContent=cur.comments.length;
+  const h=$("cms");h.innerHTML="";
+  if(!cur.comments.length){h.innerHTML=`<div class="none">まだコメントはありません。気づいたことを残しておくと後から探せます。</div>`;return}
+  cur.comments.forEach(c=>{
+    const d=document.createElement("div");d.className="cm";
+    d.innerHTML=`<span class="av">${esc(c.user[0])}</span><div class="cm-b">
+      <div class="cm-h"><strong>${esc(c.user)}</strong>${
+        c.at!=null?`<button class="jump">${mmss(c.at)}</button>`:""}
+      <span>${ago(c.created_at)}</span></div><p>${hi(c.body)}</p></div>`;
+    const j=d.querySelector(".jump");if(j)j.onclick=()=>seek(c.at);
+    if(c.user_id===ME.id){
+      const x=document.createElement("button");x.className="del";x.textContent="削除";
+      x.onclick=async()=>{await fetch("/api/comments/"+c.id,{method:"DELETE",credentials:"same-origin"});
+        cur.comments=cur.comments.filter(y=>y.id!==c.id);drawComments();drawMarks()};
+      d.querySelector(".cm-h").appendChild(x)}
+    h.appendChild(d)});
+}
+function tab(k){
+  $("tab-t").setAttribute("aria-selected",k==="t");
+  $("tab-c").setAttribute("aria-selected",k==="c");
+  $("pane-t").classList.toggle("on",k==="t");
+  $("pane-c").classList.toggle("on",k==="c");
+}
+function sync(){
+  if(!vid)return;
+  const t=vid.currentTime;$("cnow").textContent=mmss(t);
+  let idx=-1;cur.segments.forEach((s,i)=>{if(t>=s.start)idx=i});
+  const kids=[...$("lines").children];
+  kids.forEach((el,i)=>el.classList&&el.classList.toggle("now",i===idx));
+  if(kids[idx]&&$("pane-t").classList.contains("on"))
+    kids[idx].scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+$("back").onclick=closeClip;
+$("tab-t").onclick=()=>tab("t");$("tab-c").onclick=()=>tab("c");
+$("sort").onchange=load;
+$("ctext").oninput=e=>{$("csend").disabled=!e.target.value.trim()};
+$("csend").onclick=async()=>{
+  const v=$("ctext").value.trim();if(!v)return;
+  $("csend").disabled=true;
+  const at=$("cstamp").checked&&vid?Math.floor(vid.currentTime):null;
+  const r=await API.send("POST",`/api/clips/${cur.id}/comments`,{body:v,at});
+  cur.comments.push({id:r.id,user:ME.name,user_id:ME.id,at,body:v,
+    created_at:new Date().toISOString()});
+  cur.comments.sort((a,b)=>(a.at??1e9)-(b.at??1e9));
+  $("ctext").value="";drawComments();drawMarks();
+};
+$("q").oninput=e=>{query=e.target.value.trim();clearTimeout(timer);
+  timer=setTimeout(()=>{if($("player").classList.contains("on")){drawLines();drawComments()}
+    else load()},220)};
+document.addEventListener("click",()=>
+  document.querySelectorAll(".tbox.on,.picker.on").forEach(x=>x.classList.remove("on")));
+document.addEventListener("keydown",e=>{
+  const f=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
+  if(e.key==="Escape"&&$("player").classList.contains("on"))closeClip();
+  if(e.key==="/"&&!f){e.preventDefault();$("q").focus()}
+});
+boot();
+
+</script>
+</body>
+</html>

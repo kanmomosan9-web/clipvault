@@ -7,6 +7,7 @@ import config
 import db
 import dc
 import vocab
+import webui
 
 log = logging.getLogger("api")
 
@@ -92,10 +93,14 @@ def build_app(client) -> web.Application:
         log.info("job %s reported %s by %s", job_id, status, body.get("model", "?"))
         return web.json_response({"ok": True})
 
-    app.router.add_get("/", health)
     app.router.add_get("/health", health)
     app.router.add_post("/api/jobs/claim", claim)
     app.router.add_post("/api/jobs/result", result)
+
+    if config.WEB_ENABLED:
+        webui.add_routes(app, client)
+    else:
+        app.router.add_get("/", health)
     return app
 
 

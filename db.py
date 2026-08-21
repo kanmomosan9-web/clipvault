@@ -50,6 +50,39 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, id);
 
+CREATE TABLE IF NOT EXISTS comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    clip_id    INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL,
+    user_name  TEXT    NOT NULL,
+    at_seconds REAL,
+    body       TEXT    NOT NULL,
+    created_at TEXT    NOT NULL,
+    thread_message_id INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_clip ON comments(clip_id, id);
+
+CREATE TABLE IF NOT EXISTS reactions (
+    clip_id   INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    user_id   INTEGER NOT NULL,
+    user_name TEXT    NOT NULL,
+    emoji     TEXT    NOT NULL,
+    created_at TEXT   NOT NULL,
+    PRIMARY KEY (clip_id, user_id, emoji)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reactions_clip ON reactions(clip_id);
+
+CREATE TABLE IF NOT EXISTS web_tokens (
+    token      TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL,
+    user_name  TEXT    NOT NULL,
+    guild_id   INTEGER NOT NULL,
+    created_at TEXT    NOT NULL,
+    expires_at TEXT    NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_clips_message ON clips(message_id);
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -421,12 +454,18 @@ def query_clips(
 
     if query:
         q = query.strip()
+        # コメントは頻繁に増減するので FTS には入れず、LIKE で OR 結合する。
+        # インデックス再構築のコストを避けるため。
+        comment_hit = "c.id IN (SELECT clip_id FROM comments WHERE body LIKE ?)"
         if len(q) >= 3:
-            where.append("c.id IN (SELECT rowid FROM clip_fts WHERE clip_fts MATCH ?)")
-            params.append(_fts_query(q))
+            where.append(
+                "(c.id IN (SELECT rowid FROM clip_fts WHERE clip_fts MATCH ?) "
+                f"OR {comment_hit})")
+            params += [_fts_query(q), f"%{q}%"]
         else:
-            where.append("(c.title LIKE ? OR c.filename LIKE ?)")
-            params += [f"%{q}%", f"%{q}%"]
+            where.append(
+                f"(c.title LIKE ? OR c.filename LIKE ? OR {comment_hit})")
+            params += [f"%{q}%", f"%{q}%", f"%{q}%"]
 
     if tag_ids:
         marks = ", ".join("?" for _ in tag_ids)
@@ -448,6 +487,106 @@ def query_clips(
         (*params, limit, offset),
     ).fetchall()
     return rows, total
+
+
+# ---------- comments ----------
+
+def add_comment(clip_id: int, user_id: int, user_name: str, body: str,
+                at_seconds: Optional[float] = None) -> int:
+    c = connect()
+    cur = c.execute(
+        "INSERT INTO comments (clip_id, user_id, user_name, at_seconds, body, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (clip_id, user_id, user_name, at_seconds, body.strip(),
+         datetime.now(timezone.utc).isoformat()))
+    c.commit()
+    return cur.lastrowid
+
+
+def list_comments(clip_id: int) -> list[sqlite3.Row]:
+    return connect().execute(
+        "SELECT * FROM comments WHERE clip_id = ? ORDER BY "
+        "CASE WHEN at_seconds IS NULL THEN 1 ELSE 0 END, at_seconds, id",
+        (clip_id,)).fetchall()
+
+
+def delete_comment(comment_id: int, user_id: int) -> bool:
+    c = connect()
+    cur = c.execute("DELETE FROM comments WHERE id = ? AND user_id = ?",
+                    (comment_id, user_id))
+    c.commit()
+    return cur.rowcount > 0
+
+
+def comment_counts() -> dict[int, int]:
+    return {r["clip_id"]: r["n"] for r in connect().execute(
+        "SELECT clip_id, COUNT(*) n FROM comments GROUP BY clip_id")}
+
+
+def link_comment(comment_id: int, message_id: int) -> None:
+    c = connect()
+    c.execute("UPDATE comments SET thread_message_id = ? WHERE id = ?",
+              (message_id, comment_id))
+    c.commit()
+
+
+# ---------- reactions ----------
+
+def toggle_reaction(clip_id: int, user_id: int, user_name: str, emoji: str) -> bool:
+    """付いていれば外し、無ければ付ける。付けたら True。"""
+    c = connect()
+    cur = c.execute(
+        "DELETE FROM reactions WHERE clip_id = ? AND user_id = ? AND emoji = ?",
+        (clip_id, user_id, emoji))
+    if cur.rowcount:
+        c.commit()
+        return False
+    c.execute(
+        "INSERT INTO reactions (clip_id, user_id, user_name, emoji, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (clip_id, user_id, user_name, emoji, datetime.now(timezone.utc).isoformat()))
+    c.commit()
+    return True
+
+
+def clip_reactions(clip_id: int) -> dict[str, list[dict]]:
+    out: dict[str, list[dict]] = {}
+    for r in connect().execute(
+            "SELECT emoji, user_id, user_name FROM reactions WHERE clip_id = ? "
+            "ORDER BY created_at", (clip_id,)):
+        out.setdefault(r["emoji"], []).append(
+            {"id": str(r["user_id"]), "name": r["user_name"]})
+    return out
+
+
+def reaction_counts() -> dict[int, int]:
+    return {r["clip_id"]: r["n"] for r in connect().execute(
+        "SELECT clip_id, COUNT(*) n FROM reactions GROUP BY clip_id")}
+
+
+# ---------- web tokens ----------
+
+def issue_token(token: str, user_id: int, user_name: str, guild_id: int,
+                days: int = 30) -> None:
+    now = datetime.now(timezone.utc)
+    c = connect()
+    c.execute("DELETE FROM web_tokens WHERE user_id = ?", (user_id,))
+    c.execute(
+        "INSERT INTO web_tokens (token, user_id, user_name, guild_id, created_at, expires_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (token, user_id, user_name, guild_id, now.isoformat(),
+         (now + timedelta(days=days)).isoformat()))
+    c.commit()
+
+
+def resolve_token(token: str) -> Optional[sqlite3.Row]:
+    row = connect().execute(
+        "SELECT * FROM web_tokens WHERE token = ?", (token,)).fetchone()
+    if not row:
+        return None
+    if row["expires_at"] < datetime.now(timezone.utc).isoformat():
+        return None
+    return row
 
 
 def stats() -> dict:

@@ -63,6 +63,7 @@ python bot.py
 | `/clips tag:LoL` | タグ指定で開く（autocomplete対応） |
 | `/search ペンタ` | タイトル・タグ・メモ・文字起こしを全文検索 |
 | `/scan limit:500` | 保管チャンネルの過去ログを遡って一括取り込み |
+| `/library` | **ブラウザ版ライブラリのリンクを発行** |
 | `/stats` | 件数・総時間・総容量・人気タグ |
 | `/resync` | 全クリップのリアクション数を数え直す |
 | `/transcribe` | 文字起こしジョブをキューに積む |
@@ -94,6 +95,8 @@ grid.py      Pillowによるグリッド合成
 bot.py       取り込み、GridView / ListView / ClipView / EditModal、スラッシュコマンド
 worker.py    文字起こしワーカー（別プロセスで起動）
 api.py       ジョブAPI（リモートワーカー用のHTTPエンドポイント）
+webui.py     Web ライブラリの REST API と静的配信
+web/         ブラウザ版 UI（index.html 単体）
 dc.py        添付URLの再取得ヘルパー
 doctor.py    環境とファイル版の診断
 deploy/      systemdユニット、VMセットアップ、ネットワーク検証、SSHトンネル
@@ -143,7 +146,7 @@ botとは**別プロセス**で動く。gatewayを数十秒ブロックすると
 
 `WORKER_GRACE_SECONDS` 秒だけ待ってからジョブを取るように設定できるので、**GPUマシンを即時・CPUマシンを遅延にすれば自動でフェイルオーバーする**。GPU側は空き時間に低品質モデルで処理された分を自動で取り直す（`AUTO_UPGRADE=1`）。
 
-クラウド構成の手順は `DEPLOY.md`、Oracle Cloud は `ORACLE.md`、ネットワークは `NETWORK.md`、GitHub のセットアップは `GITHUB.md` を参照。
+クラウド構成は `DEPLOY.md`、Oracle Cloud は `ORACLE.md`、ネットワークは `NETWORK.md`、GitHub は `GITHUB.md`、**ブラウザ版ライブラリは `WEB.md`** を参照。
 
 ### 導入
 

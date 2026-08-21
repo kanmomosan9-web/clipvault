@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import api
+import webui
 import config
 import db
 import grid
@@ -18,7 +19,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21g (LoL vocabulary + correction)"
+BUILD = "2026-08-21h (web library)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -746,6 +747,36 @@ async def cmd_jobs(interaction: discord.Interaction):
                                     for f in fails), inline=False)
     e.set_footer(text="worker.py が起動していないとキューは消化されません")
     await interaction.response.send_message(embed=e, ephemeral=True)
+
+
+@bot.tree.command(name="library", description="ブラウザ版のクリップライブラリを開きます")
+async def cmd_library(interaction: discord.Interaction):
+    if not config.WEB_ENABLED:
+        await interaction.response.send_message(
+            "Web ライブラリは無効になっています（`WEB_ENABLED=0`）。", ephemeral=True)
+        return
+    if not config.PUBLIC_URL:
+        await interaction.response.send_message(
+            "`PUBLIC_URL` が未設定です。VM の `.env` に公開URLを設定してください。",
+            ephemeral=True)
+        return
+
+    token = webui.new_token()
+    db.issue_token(token, interaction.user.id, interaction.user.display_name,
+                   interaction.guild_id or 0, days=config.WEB_TOKEN_DAYS)
+    url = f"{config.PUBLIC_URL}/?t={token}"
+
+    e = discord.Embed(
+        title="🎬 クリップライブラリ",
+        description="サムネイル一覧、検索、再生、タグ編集、コメントが使えます。",
+        colour=0xC8AA6E)
+    e.add_field(name="有効期限", value=f"{config.WEB_TOKEN_DAYS} 日", inline=True)
+    e.add_field(name="ログイン", value=interaction.user.display_name, inline=True)
+    e.set_footer(text="このリンクはあなた専用です。他の人には共有しないでください。")
+
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="ライブラリを開く", url=url, style=discord.ButtonStyle.link))
+    await interaction.response.send_message(embed=e, view=view, ephemeral=True)
 
 
 @bot.tree.command(name="stats", description="ライブラリの統計を表示します")
