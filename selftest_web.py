@@ -170,7 +170,27 @@ async def activity_checks():
         r = await cli.get("/")
         body = await r.text()
         print("CLIENT_ID 埋め込み     ->", config.CLIENT_ID in body)
-        assert "__CLIENT_ID__\"" not in body.replace('window.__CLIENT_ID__', '')
+        assert f'"{config.CLIENT_ID}"' in body, "CLIENT_ID が値として入っていない"
+        assert "window.__CLIENT_ID__" in body, "変数名まで置換されている"
+        assert "window.__CDN_PREFIX__" in body, "変数名まで置換されている"
+        assert "%%" not in body, "未置換のプレースホルダが残っている"
+
+        # サーバーが返した実物のスクリプトを構文検査する。
+        # テンプレート置換で壊れると画面が真っ白になるため。
+        import shutil
+        import subprocess
+        import tempfile
+        if shutil.which("node"):
+            script = body.split("<script>")[1].split("</script>")[0]
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+                f.write(script)
+                tmp = f.name
+            res = subprocess.run(["node", "--check", tmp], capture_output=True)
+            print("描画後スクリプトの構文 ->",
+                  "OK" if res.returncode == 0 else res.stderr.decode()[:300])
+            assert res.returncode == 0, "置換後のスクリプトが構文エラー"
+        else:
+            print("描画後スクリプトの構文 -> node が無いのでスキップ")
 
         r = await cli.get("/.proxy/api/clips", headers=H)
         print("GET /.proxy/api/clips ->", r.status, (await r.json())["total"], "件")

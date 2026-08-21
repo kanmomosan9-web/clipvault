@@ -32,6 +32,8 @@ def require_user(handler):
     async def wrapped(request: web.Request):
         user = _user(request)
         if user is None:
+            log.warning("401 %s %s (token=%s)", request.method, request.path,
+                        "あり" if _token_from(request) else "なし")
             return web.json_response(
                 {"error": "unauthorized",
                  "detail": "Discord で /library を実行してリンクを取得してください。"},
@@ -286,9 +288,12 @@ def add_routes(app: web.Application, client) -> None:
         html = STATIC / "index.html"
         if not html.exists():
             return web.Response(text="web/index.html が見つかりません", status=500)
+        # プレースホルダは変数名と衝突しない形にする。
+        # 以前 __CLIENT_ID__ を使っていて window.__CLIENT_ID__ まで
+        # 置換され、スクリプト全体が構文エラーになる事故があった。
         body = (html.read_text(encoding="utf-8")
-                .replace("__CLIENT_ID__", config.CLIENT_ID)
-                .replace("__CDN_PREFIX__", config.CDN_PROXY_PREFIX))
+                .replace("%%CLIENT_ID%%", config.CLIENT_ID)
+                .replace("%%CDN_PREFIX%%", config.CDN_PROXY_PREFIX))
         resp = web.Response(text=body, content_type="text/html",
                             headers={"Cache-Control": "no-cache"})
         tok = request.query.get("t")
@@ -296,6 +301,20 @@ def add_routes(app: web.Application, client) -> None:
             resp.set_cookie(COOKIE, tok, max_age=60 * 60 * 24 * 30,
                             httponly=True, samesite="Lax")
         return resp
+
+    @web.middleware
+    async def access_log(request, handler):
+        try:
+            resp = await handler(request)
+        except web.HTTPException as e:
+            if e.status >= 400:
+                log.info("%s %s -> %s", request.method, request.path, e.status)
+            raise
+        if resp.status >= 400 or request.path.startswith("/.proxy"):
+            log.info("%s %s -> %s", request.method, request.path, resp.status)
+        return resp
+
+    app.middlewares.append(access_log)
 
     r = app.router
     r.add_get("/", index)

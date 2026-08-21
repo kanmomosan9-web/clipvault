@@ -163,6 +163,32 @@ SDK は `web/assets/embedded-app-sdk.js` に**バンドル済みで同梱**し�
 
 Activity では `/library` を使わない。起動するだけでログイン済みになる。
 
+## 中身が空のとき
+
+パネルは開くのにクリップが1件も出ない場合、**API に到達できていない**。
+`Ctrl+Shift+I` で開発者ツールを開き、Console を見る。
+
+```
+[clipvault] SDK ready
+[clipvault] authorized
+[clipvault] token exchanged, prefix = /.proxy  user = つるかん
+```
+
+ここまで出ていれば認証は成功している。その先で `/api/clips -> 401` などが
+出ていれば原因が特定できる。
+
+VM 側のログにも記録される。
+
+```bash
+journalctl -u clipvault-bot -f | grep -E '401|/.proxy'
+```
+
+`401 GET /api/clips (token=なし)` ならトークンがヘッダーに乗っていない。
+`404` なら URL Mappings のプレフィックスが合っていない。
+
+boot.js は `/.proxy` あり・なしの両方を試して通る方を採用するので、
+どちらの流儀でも動く。Console の `prefix =` がどちらになったかで判別できる。
+
 ## つまずきやすい点
 
 - **パネルが真っ白** → URL Mappings の1件目が違う。`https://` は付けない
