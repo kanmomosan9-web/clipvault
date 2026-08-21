@@ -1,0 +1,23 @@
+/* Activity 内は CSP で外部フォントを読めないため同梱する。
+   日本語は各OSのシステムフォントに任せる（数MBの同梱を避けるため）。 */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('fonts/cinzel-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/jbmono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/jbmono-700.woff2') format('woff2');
+}

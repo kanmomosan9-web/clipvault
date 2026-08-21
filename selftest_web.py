@@ -175,6 +175,20 @@ async def activity_checks():
         assert "window.__CDN_PREFIX__" in body, "変数名まで置換されている"
         assert "%%" not in body, "未置換のプレースホルダが残っている"
 
+        # 起動経路とアセット参照の検査。
+        # 置換が無言で失敗して boot.js のタグが入っていない事故があった。
+        assert 'src="assets/boot.js"' in body, "boot.js の読み込みタグが無い"
+        assert "\nboot();" not in body, "boot() を直接呼んでいる（boot.js を経由しない）"
+        assert "window.__start = boot;" in body, "起動関数が公開されていない"
+        assert "fonts.googleapis.com" not in body, "外部フォント参照が残っている（CSPで弾かれる）"
+        assert 'href="assets/fonts.css"' in body, "同梱フォントの参照が無い"
+        print("起動経路とアセット      -> OK")
+
+        for path in ("/assets/fonts.css", "/assets/fonts/cinzel-600.woff2"):
+            rr = await cli.get(path)
+            print(f"{path:<34} -> {rr.status}")
+            assert rr.status == 200
+
         # サーバーが返した実物のスクリプトを構文検査する。
         # テンプレート置換で壊れると画面が真っ白になるため。
         import shutil

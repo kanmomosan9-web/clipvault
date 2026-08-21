@@ -28,6 +28,7 @@ MARKERS = {
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
     "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code")],
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
+    "web/assets/fonts.css": [("同梱フォント", "font-face")],
     "selftest_commands.py": [("コマンド欠落検査", "EXPECTED")],
     "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
 }
@@ -253,7 +254,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21n (iframe detection)")
+        print("  INFO BUILD 2026-08-21o (boot tag + bundled fonts)")
     print()
 
 
