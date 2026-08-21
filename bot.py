@@ -19,7 +19,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21h (web library)"
+BUILD = "2026-08-21i (scan fix + paging)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -649,36 +649,46 @@ async def cmd_search(interaction: discord.Interaction, query: str):
 
 
 @bot.tree.command(name="scan", description="保管チャンネルの過去ログを取り込みます")
-@app_commands.describe(limit="遡る件数（既定 500）")
-async def cmd_scan(interaction: discord.Interaction, limit: int = 500):
+@app_commands.describe(
+    limit="遡るメッセージ数。動画の本数ではなく会話も含む総数（既定 2000）",
+    order="どちらから遡るか")
+@app_commands.choices(order=[
+    app_commands.Choice(name="新しい順（既定）", value="new"),
+    app_commands.Choice(name="古い順", value="old")])
+async def cmd_scan(interaction: discord.Interaction, limit: int = 2000,
+                   order: Optional[app_commands.Choice[str]] = None):
     await interaction.response.defer(ephemeral=True)
-    total = 0
+    oldest_first = bool(order and order.value == "old")
+
+    total_new, seen, hit_limit = 0, 0, False
     for cid in config.STORAGE_CHANNEL_IDS:
         channel = bot.get_channel(cid)
         if channel is None:
             continue
-        async for msg in channel.history(limit=limit, oldest_first=True):
-            if msg.author.bot:
-                continue
-            total += len(await ingest_message(msg))
-    await interaction.edit_original_response(content=f"取り込み完了：{total} 件の新規クリップ")
+        count = 0
+        async for msg in channel.history(limit=limit, oldest_first=oldest_first):
+            count += 1
+            seen += 1
+            if not msg.author.bot:
+                total_new += len(await ingest_message(msg))
+            if seen % 250 == 0:
+                try:
+                    await interaction.edit_original_response(
+                        content=f"走査中… {seen} 件を確認 / {total_new} 件を取り込み")
+                except discord.HTTPException:
+                    pass
+        if count >= limit:
+            hit_limit = True
 
-
-@bot.tree.command(name="resync", description="全クリップのリアクション数を数え直します")
-async def cmd_resync(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    refs = db.message_refs()
-    ok = 0
-    for i, ref in enumerate(refs):
-        if await _sync_reactions(ref["message_id"], ref["channel_id"]):
-            ok += 1
-        if i % 25 == 24:
-            await interaction.edit_original_response(
-                content=f"再集計中… {i + 1}/{len(refs)}")
-            await asyncio.sleep(1)
-    await interaction.edit_original_response(
-        content=f"再集計完了：{ok}/{len(refs)} 件のメッセージを更新しました。"
-                + ("\n取得できなかったメッセージは、削除済みか権限不足です。" if ok < len(refs) else ""))
+    msg = f"取り込み完了：**{total_new} 件**の新規クリップ（{seen} 件のメッセージを確認）"
+    if hit_limit:
+        msg += (f"\n\n⚠️ 上限 {limit} 件に達したため、それより"
+                f"{'新しい' if oldest_first else '古い'}メッセージは未確認です。\n"
+                f"`/scan limit:{limit * 5}` で続きを確認できます"
+                f"（重複は自動でスキップされます）。")
+    if total_new:
+        msg += "\n\nリアクションを反映するには `/resync` を実行してください。"
+    await interaction.edit_original_response(content=msg)
 
 
 @bot.tree.command(name="transcribe", description="文字起こしのジョブを積みます")

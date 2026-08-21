@@ -77,6 +77,9 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .chips{margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .chip{font-size:11px;color:var(--gold);border:1px solid var(--gold-dim);padding:0 6px;line-height:17px;white-space:nowrap}
 .empty{padding:70px 10px;text-align:center;color:var(--muted)}
+.more{display:block;width:100%;margin:26px 0 10px;padding:13px;font-size:12.5px;
+  color:var(--muted);border:1px solid var(--line);background:var(--surface);letter-spacing:.06em}
+.more:hover{color:var(--gold);border-color:var(--gold-dim)}
 .empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px;font-weight:500}
 
 .player{display:none}.player.on{display:block}
@@ -222,6 +225,7 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
   <div class="stage">
     <div id="grid" class="grid"></div>
     <div id="empty" class="empty" hidden><b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。</div>
+    <button id="more" class="more" hidden></button>
 
     <section id="player" class="player">
       <button class="back" id="back">◀ 一覧へ戻る</button>
@@ -288,11 +292,13 @@ const ago=iso=>{const d=(Date.now()-new Date(iso))/1000;
 
 let ME={name:"?"},query="",filters={game:null,tag:null,by:null},
     items=[],cur=null,vid=null,timer=null;
+let offset=0,total=0,loading=false,done=false,io=null;
+const PAGE=36;
 
 async function boot(){
   try{ME=await API.get("/api/me")}catch(e){return fail()}
   $("who").textContent=ME.name;$("avme").textContent=ME.name[0];
-  await facets();await load();
+  await facets();reset();
 }
 function fail(){
   document.body.innerHTML=`<div style="margin:auto;padding:60px 24px;max-width:440px;text-align:center">
@@ -308,7 +314,7 @@ async function facets(){
     const b=document.createElement("button");b.className="tag";
     b.setAttribute("aria-pressed",filters[key]===o.name);
     b.innerHTML=`<span>${esc(o.name)}</span><em>${o.count}</em>`;
-    b.onclick=()=>{filters[key]=filters[key]===o.name?null:o.name;load()};
+    b.onclick=()=>{filters[key]=filters[key]===o.name?null:o.name;reset()};
     host.appendChild(b)})};
   mk($("games"),f.games,"game");mk($("tags"),f.tags,"tag");mk($("members"),f.members,"by");
   window.TAGS=f.tags;
@@ -320,30 +326,63 @@ function qs(){
   if(filters.game)p.set("game",filters.game);
   if(filters.tag)p.append("tag",filters.tag);
   if(filters.by)p.set("by",filters.by);
-  p.set("sort",$("sort").value);p.set("limit","60");
+  p.set("sort",$("sort").value);
+  p.set("limit",String(PAGE));p.set("offset",String(offset));
   return p.toString();
 }
 
+function cardFor(c){
+  const b=document.createElement("button");b.className="card";
+  b.innerHTML=`<div class="thumb cut">
+    <img src="${c.thumb}" alt="" loading="lazy"><div class="scan"></div>
+    <span class="star">★${c.stars}</span><span class="badge">${mmss(c.duration)}</span>
+    <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
+    <div class="meta"><div class="title">${hi(c.title)}</div>
+    <div class="sub">${esc(c.by)} · ${c.date}${c.comments?" · 💬"+c.comments:""}</div>
+    <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
+      c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>`;
+  b.onclick=()=>openClip(c.id);return b;
+}
+
+function reset(){
+  offset=0;done=false;items=[];$("grid").innerHTML="";
+  if(io){io.disconnect();io=null}
+  load();
+}
+
 async function load(){
-  const d=await API.get("/api/clips?"+qs());
-  items=d.items;$("n").textContent=d.items.length;$("ntotal").textContent=d.total;
-  const g=$("grid");g.innerHTML="";$("empty").hidden=items.length>0;
-  items.forEach(c=>{
-    const b=document.createElement("button");b.className="card";
-    b.innerHTML=`<div class="thumb cut">
-      <img src="${c.thumb}" alt="" loading="lazy"><div class="scan"></div>
-      <span class="star">★${c.stars}</span><span class="badge">${mmss(c.duration)}</span>
-      <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
-      <div class="meta"><div class="title">${hi(c.title)}</div>
-      <div class="sub">${esc(c.by)} · ${c.date}${c.comments?" · 💬"+c.comments:""}</div>
-      <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
-        c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>`;
-    b.onclick=()=>openClip(c.id);g.appendChild(b)});
+  if(loading||done)return;
+  loading=true;$("more").hidden=false;$("more").textContent="読み込み中…";
+  try{
+    const d=await API.get("/api/clips?"+qs());
+    total=d.total;
+    d.items.forEach(c=>{items.push(c);$("grid").appendChild(cardFor(c))});
+    offset+=d.items.length;
+    done=!d.has_more;
+    $("n").textContent=items.length;$("ntotal").textContent=total;
+    $("empty").hidden=items.length>0;
+    $("more").hidden=items.length===0;
+    if(done){
+      $("more").textContent=`— 全 ${total} 件を表示しました —`;
+      if(io){io.disconnect();io=null}
+    }else{
+      $("more").textContent="さらに読み込む";
+      observe();
+    }
+  }finally{loading=false}
+}
+
+function observe(){
+  if(io)io.disconnect();
+  io=new IntersectionObserver(es=>{
+    if(es[0].isIntersecting&&!loading&&!done)load();
+  },{root:document.querySelector(".stage"),rootMargin:"400px"});
+  io.observe($("more"));
 }
 
 async function openClip(id){
   cur=await API.get("/api/clips/"+id);
-  $("grid").hidden=true;$("empty").hidden=true;$("player").classList.add("on");
+  $("grid").hidden=true;$("empty").hidden=true;$("more").hidden=true;$("player").classList.add("on");
   $("ptitle").textContent=cur.title;
   $("pmeta").textContent=`${cur.by} · ${cur.date} · ${cur.width}x${cur.height} · ${mmss(cur.duration)}`;
   $("jump").href=cur.jump;
@@ -357,7 +396,7 @@ async function openClip(id){
 }
 function closeClip(){
   if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
-  $("player").classList.remove("on");$("grid").hidden=false;facets();load();
+  $("player").classList.remove("on");$("grid").hidden=false;facets();reset();
 }
 const seek=t=>{if(!vid)return;vid.currentTime=t;vid.play().catch(()=>{})};
 
@@ -461,9 +500,10 @@ function sync(){
   if(kids[idx]&&$("pane-t").classList.contains("on"))
     kids[idx].scrollIntoView({block:"nearest",behavior:"smooth"});
 }
+$("more").onclick=()=>{if(!done)load()};
 $("back").onclick=closeClip;
 $("tab-t").onclick=()=>tab("t");$("tab-c").onclick=()=>tab("c");
-$("sort").onchange=load;
+$("sort").onchange=reset;
 $("ctext").oninput=e=>{$("csend").disabled=!e.target.value.trim()};
 $("csend").onclick=async()=>{
   const v=$("ctext").value.trim();if(!v)return;
@@ -477,7 +517,7 @@ $("csend").onclick=async()=>{
 };
 $("q").oninput=e=>{query=e.target.value.trim();clearTimeout(timer);
   timer=setTimeout(()=>{if($("player").classList.contains("on")){drawLines();drawComments()}
-    else load()},220)};
+    else reset()},220)};
 document.addEventListener("click",()=>
   document.querySelectorAll(".tbox.on,.picker.on").forEach(x=>x.classList.remove("on")));
 document.addEventListener("keydown",e=>{

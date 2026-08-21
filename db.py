@@ -314,6 +314,12 @@ def set_reactions(message_id: int, count: int) -> None:
     c.commit()
 
 
+def uploader_id_by_name(name: str) -> Optional[int]:
+    row = connect().execute(
+        "SELECT uploader_id FROM clips WHERE uploader_name = ? LIMIT 1", (name,)).fetchone()
+    return row["uploader_id"] if row else None
+
+
 def message_refs() -> list[sqlite3.Row]:
     return connect().execute(
         "SELECT DISTINCT channel_id, message_id FROM clips ORDER BY message_id").fetchall()

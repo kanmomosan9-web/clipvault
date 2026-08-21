@@ -95,11 +95,13 @@ def add_routes(app: web.Application, client) -> None:
             if tid:
                 tag_ids.append(tid)
         by = request.query.get("by", "")
+        uploader_id = db.uploader_id_by_name(by) if by else None
+        if by and uploader_id is None:
+            return web.json_response({"total": 0, "items": []})
 
-        rows, total = db.query_clips(query=q, tag_ids=tag_ids, sort=sort,
+        rows, total = db.query_clips(query=q, tag_ids=tag_ids,
+                                     uploader_id=uploader_id, sort=sort,
                                      offset=offset, limit=limit)
-        if by:
-            rows = [r for r in rows if r["uploader_name"] == by]
 
         rcount, ccount = db.reaction_counts(), db.comment_counts()
         items = []
@@ -115,7 +117,9 @@ def add_routes(app: web.Application, client) -> None:
             if item["preview"] is None and segs:
                 item["preview"] = {"t": segs[0]["start"], "text": segs[0]["text"]}
             items.append(item)
-        return web.json_response({"total": total, "items": items})
+        return web.json_response({"total": total, "offset": offset,
+                                  "has_more": offset + len(items) < total,
+                                  "items": items})
 
     async def clip_detail(request):
         cid = int(request.match_info["id"])
