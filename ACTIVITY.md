@@ -169,10 +169,14 @@ Activity では `/library` を使わない。起動するだけでログイン�
 `Ctrl+Shift+I` で開発者ツールを開き、Console を見る。
 
 ```
+[clipvault] activity = true | inFrame = true | search = ?frame_id=...
 [clipvault] SDK ready
 [clipvault] authorized
 [clipvault] token exchanged, prefix = /.proxy  user = つるかん
 ```
+
+1行目の `activity` が `false` なら、Activity と認識されていない。
+その場合はブラウザ用の「リンクの有効期限が切れています」画面になる。
 
 ここまで出ていれば認証は成功している。その先で `/api/clips -> 401` などが
 出ていれば原因が特定できる。

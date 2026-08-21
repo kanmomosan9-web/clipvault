@@ -1,8 +1,21 @@
 // Activity 内かどうかを判定して初期化する。
 // ブラウザで開いた場合は何もせずアプリを起動するだけ。
 const params = new URLSearchParams(location.search);
-const frameId = params.get("frame_id");
 const CLIENT_ID = window.__CLIENT_ID__ || "";
+
+// Activity かどうかの判定。
+// frame_id クエリだけに頼ると、Discord 側の遷移で欠けたときに
+// 「ブラウザとして起動 → トークンが無い → 期限切れ画面」になる。
+// iframe に入っていること自体も条件に加える。
+const inFrame = (() => {
+  try { return window.self !== window.top; } catch (e) { return true; }
+})();
+const hasParams = params.has("frame_id") || params.has("instance_id")
+  || params.has("channel_id") || params.has("platform");
+const isActivity = hasParams || inFrame;
+
+console.log("[clipvault] activity =", isActivity,
+  "| inFrame =", inFrame, "| search =", location.search || "(なし)");
 
 // Discord のプロキシは環境によって /.proxy を剥がす場合と残す場合がある。
 // どちらでも動くよう、実際に叩いて通る方を採用する。
@@ -73,7 +86,7 @@ async function startActivity() {
 
 (async () => {
   try {
-    if (frameId) {
+    if (isActivity) {
       if (!(await startActivity())) return;
     } else {
       window.CV_PREFIX = "";
@@ -83,9 +96,9 @@ async function startActivity() {
   } catch (e) {
     console.error("[clipvault]", e);
     panel(
-      frameId ? "Discord との接続に失敗しました" : "ライブラリを読み込めませんでした",
+      isActivity ? "Discord との接続に失敗しました" : "ライブラリを読み込めませんでした",
       String(e && e.message ? e.message : e),
-      frameId
+      isActivity
         ? "Ctrl+Shift+I で開発者ツールを開くと詳細が見られます。"
         : "Discord で /library を実行してリンクを取り直してください。"
     );

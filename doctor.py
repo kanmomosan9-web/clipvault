@@ -253,7 +253,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21m (fix template placeholder)")
+        print("  INFO BUILD 2026-08-21n (iframe detection)")
     print()
 
 
