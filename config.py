@@ -98,8 +98,10 @@ WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
 ACTIVITY_ENABLED = os.getenv("ACTIVITY_ENABLED", "1") == "1"
 CLIENT_ID = os.getenv("CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", "")
-# Activity 内では全通信が Discord のプロキシを通るため、
-# 外部ドメインは URL Mappings で宣言したプレフィックス配下に置く。
+# Activity 内では全通信が Discord のプロキシを通る。
+# URL Mappings には "/cdn -> cdn.discordapp.com" と登録し（"/.proxy" は
+# ポータルでは入力できない）、アプリからは "/.proxy/cdn/..." を叩く。
+# "/.proxy" の部分は Discord 側が解決する。
 CDN_PROXY_PREFIX = os.getenv("CDN_PROXY_PREFIX", "/.proxy/cdn")
 
 # 自然な文章をプロンプトに入れるとそのまま出力されやすい（幻覚）。

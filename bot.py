@@ -19,7 +19,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21j (discord activity)"
+BUILD = "2026-08-21k (restore resync)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -689,6 +689,24 @@ async def cmd_scan(interaction: discord.Interaction, limit: int = 2000,
     if total_new:
         msg += "\n\nリアクションを反映するには `/resync` を実行してください。"
     await interaction.edit_original_response(content=msg)
+
+
+@bot.tree.command(name="resync", description="全クリップのリアクション数を数え直します")
+async def cmd_resync(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    refs = db.message_refs()
+    ok = 0
+    for i, ref in enumerate(refs):
+        if await _sync_reactions(ref["message_id"], ref["channel_id"]):
+            ok += 1
+        if i % 25 == 24:
+            await interaction.edit_original_response(
+                content=f"再集計中… {i + 1}/{len(refs)}")
+            await asyncio.sleep(1)
+    await interaction.edit_original_response(
+        content=f"再集計完了：{ok}/{len(refs)} 件のメッセージを更新しました。"
+                + ("\n取得できなかったメッセージは、削除済みか権限不足です。"
+                   if ok < len(refs) else ""))
 
 
 @bot.tree.command(name="transcribe", description="文字起こしのジョブを積みます")

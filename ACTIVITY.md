@@ -92,7 +92,19 @@ PUBLIC_URL=https://clipvault.tailXXXX.ts.net
 | Prefix | Target |
 |---|---|
 | `/` | `clipvault.tailXXXX.ts.net` |
-| `/.proxy/cdn` | `cdn.discordapp.com` |
+| `/cdn` | `cdn.discordapp.com` |
+
+**Prefix に `/.proxy` を書いてはいけない。** 「プレフィックスは .proxy を
+含むことができません」と弾かれる。`/.proxy` は Discord が自動的に付けるもので、
+登録するのは**その先の部分だけ**。
+
+```
+ポータルに登録:  /cdn        ->  cdn.discordapp.com
+アプリが叩くURL:  /.proxy/cdn/attachments/...
+                  ~~~~~~~ Discord が解決する
+```
+
+Target に `https://` は付けない。ホスト名だけ。
 
 **2件目が重要。** Activity 内は Discord のプロキシを通るため、外部ドメインは
 ここで宣言しないと読めない。これを入れておくと**動画は Discord のプロキシが
@@ -154,7 +166,9 @@ Activity では `/library` を使わない。起動するだけでログイン�
 ## つまずきやすい点
 
 - **パネルが真っ白** → URL Mappings の1件目が違う。`https://` は付けない
-- **動画だけ再生されない** → `/.proxy/cdn` のマッピング漏れ
+- **動画だけ再生されない** → `/cdn` のマッピング漏れ
+- **「プレフィックスは .proxy を含むことができません」** → Prefix は `/cdn`。
+  `/.proxy` は書かない
 - **Launch ボタンが無い** → Activities を有効化していないか、Entry Point
   コマンドを消してしまっている。Activities を一度無効→有効で再生成される
 - **「Discord との接続に失敗」** → `CLIENT_ID` が未設定か誤り。VM の
