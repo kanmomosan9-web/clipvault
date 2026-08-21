@@ -19,7 +19,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21p (signed thumbs + scroll fix)"
+BUILD = "2026-08-21q (inline player)"
 
 intents = discord.Intents.default()
 intents.message_content = True

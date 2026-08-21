@@ -81,8 +81,23 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .more:hover{color:var(--gold);border-color:var(--gold-dim)}
 .empty b{display:block;color:var(--text);font-size:15px;margin-bottom:6px;font-weight:500}
 
-.player{display:none}.player.on{display:block}
+.player{display:none}
+.player.on{display:block}
+/* グリッドの行の直下に展開する。一覧は消さず、スクロールも動かさない。 */
+.player.inline{
+  grid-column:1/-1;margin:4px 0 20px;padding:20px;
+  border:1px solid var(--gold-dim);background:#0E151C;position:relative;
+}
+.player.inline::before{
+  content:"";position:absolute;left:0;top:0;width:100%;height:2px;background:var(--gold);
+}
+.notch{
+  position:absolute;top:-9px;width:16px;height:16px;background:#0E151C;
+  border-left:1px solid var(--gold-dim);border-top:1px solid var(--gold-dim);
+  transform:rotate(45deg);transition:left .18s;
+}
 .back{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;margin-bottom:16px}
+.card.open .thumb{border-color:var(--gold)}
 .back:hover{color:var(--gold)}
 .pwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
 .screen{position:relative;aspect-ratio:16/9;background:#05080B;border:1px solid var(--line);overflow:hidden}
@@ -227,7 +242,8 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
     <button id="more" class="more" hidden></button>
 
     <section id="player" class="player">
-      <button class="back" id="back">◀ 一覧へ戻る</button>
+      <span class="notch" id="notch"></span>
+      <button class="back" id="back">✕ 閉じる</button>
       <div class="pwrap">
         <div>
           <div class="screen" id="screen"></div>
@@ -355,6 +371,9 @@ function cardFor(c){
 }
 
 function reset(){
+  const pl=$("player");
+  if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
+  pl.classList.remove("on","inline");openId=null;cur=null;
   offset=0;done=false;items=[];cardEls.clear();$("grid").innerHTML="";
   if(io){io.disconnect();io=null}
   return load().catch(err);
@@ -407,13 +426,37 @@ function mediaSrc(c){
   return SIGN(P()+c.media);
 }
 
-let stageTop=0;
+let openId=null;
+
+function rowEndAfter(el){
+  // 同じ行にあるカードのうち一番最後のものを返す。
+  // その直後に差し込めば、行の途中でレイアウトが割れない。
+  const top=el.offsetTop;
+  let last=el;
+  for(const c of $("grid").children){
+    if(c.classList.contains("card")&&c.offsetTop===top)last=c;
+  }
+  return last;
+}
+
+function placePlayer(){
+  const card=cardEls.get(openId);
+  if(!card||!card.parentNode)return;
+  const anchor=rowEndAfter(card);
+  const pl=$("player");
+  if(anchor.nextSibling!==pl)anchor.after(pl);
+  const g=$("grid").getBoundingClientRect();
+  const c=card.getBoundingClientRect();
+  $("notch").style.left=(c.left-g.left+c.width/2-8)+"px";
+}
 
 async function openClip(id){
-  const stage=document.querySelector(".stage");
-  stageTop=stage.scrollTop;          // 一覧の位置を覚えておく
   cur=await API.get("/api/clips/"+id);
-  $("grid").hidden=true;$("empty").hidden=true;$("more").hidden=true;$("player").classList.add("on");
+  openId=id;
+  cardEls.forEach((el,k)=>el.classList.toggle("open",k===id));
+  const pl=$("player");
+  pl.classList.add("on","inline");
+  placePlayer();
   $("ptitle").textContent=cur.title;
   $("pmeta").textContent=`${cur.by} · ${cur.date} · ${cur.width}x${cur.height} · ${mmss(cur.duration)}`;
   $("jump").href=cur.jump;
@@ -429,16 +472,20 @@ async function openClip(id){
   vid.ontimeupdate=sync;vid.onloadedmetadata=drawMarks;
   box.appendChild(vid);
   drawTags();drawReacts();drawLines();drawComments();drawMarks();tab("t");
-  stage.scrollTop=0;                 // プレーヤーを画面の先頭に出す
+  placePlayer();
+  $("player").scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 function closeClip(){
   if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
-  $("player").classList.remove("on");
-  $("grid").hidden=false;$("more").hidden=items.length===0;
+  const card=cardEls.get(openId);
   refreshCard();                     // 編集内容をカードに反映
+  const pl=$("player");
+  pl.classList.remove("on","inline");
+  document.querySelector(".stage").appendChild(pl);
+  cardEls.forEach(el=>el.classList.remove("open"));
   facets();
-  // 読み込み済みのカードは捨てず、見ていた位置に戻す
-  requestAnimationFrame(()=>{document.querySelector(".stage").scrollTop=stageTop});
+  openId=null;cur=null;
+  if(card&&card.parentNode)card.scrollIntoView({block:"nearest"});
 }
 
 function refreshCard(){
@@ -448,7 +495,11 @@ function refreshCard(){
   Object.assign(items[i],{title:cur.title,tags:cur.tags,game:cur.game,
     stars:cur.stars,comments:cur.comments.length});
   const old=cardEls.get(cur.id);
-  if(old&&old.parentNode){const fresh=cardFor(items[i]);old.replaceWith(fresh)}
+  if(old&&old.parentNode){
+    const fresh=cardFor(items[i]);
+    old.replaceWith(fresh);
+    if(openId===cur.id)fresh.classList.add("open");
+  }
 }
 const seek=t=>{if(!vid)return;vid.currentTime=t;vid.play().catch(()=>{})};
 
@@ -570,11 +621,16 @@ $("csend").onclick=async()=>{
 $("q").oninput=e=>{query=e.target.value.trim();clearTimeout(timer);
   timer=setTimeout(()=>{if($("player").classList.contains("on")){drawLines();drawComments()}
     else reset()},220)};
+let rz=null;
+window.addEventListener("resize",()=>{
+  if(!openId)return;
+  clearTimeout(rz);rz=setTimeout(placePlayer,120);
+});
 document.addEventListener("click",()=>
   document.querySelectorAll(".tbox.on,.picker.on").forEach(x=>x.classList.remove("on")));
 document.addEventListener("keydown",e=>{
   const f=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
-  if(e.key==="Escape"&&$("player").classList.contains("on"))closeClip();
+  if(e.key==="Escape"&&openId)closeClip();
   if(e.key==="/"&&!f){e.preventDefault();$("q").focus()}
 });
 window.__start = boot;
