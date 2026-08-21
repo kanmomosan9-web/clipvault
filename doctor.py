@@ -31,6 +31,7 @@ MARKERS = {
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
     "web/assets/fonts.css": [("同梱フォント", "font-face")],
     "selftest_commands.py": [("コマンド欠落検査", "EXPECTED")],
+    "selftest_dom.js": [("画面の描画検査", "DOM OK")],
     "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
 }
 
@@ -259,7 +260,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21s (favorites)")
+        print("  INFO BUILD 2026-08-21t (fix player render)")
     print()
 
 

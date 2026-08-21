@@ -152,6 +152,7 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .prow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:12.5px;color:var(--muted);font-family:var(--mono)}
 
 .reacts{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;align-items:center}
+.rxwrap{display:contents}
 .rx{display:flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);
   background:var(--surface);font-size:13px;transition:.12s;line-height:20px}
 .rx:hover{border-color:var(--gold-dim)}
@@ -270,7 +271,10 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
             <h1 id="ptitle"></h1>
             <div class="prow"><span id="pmeta"></span><a id="jump" target="_blank" rel="noopener">Discord で開く ↗</a></div>
             <div class="tagline" id="tagline"></div>
-            <div class="reacts" id="reacts"><button class="favbtn" id="favbtn"></button></div>
+            <div class="reacts">
+              <button class="favbtn" id="favbtn"></button>
+              <span class="rxwrap" id="reacts"></span>
+            </div>
             <div class="picker" id="picker"></div>
           </div>
         </div>
@@ -597,7 +601,6 @@ function drawFav(){
 
 function drawReacts(){
   const h=$("reacts");h.innerHTML="";
-  h.appendChild($("favbtn"));
   Object.entries(cur.reactions).forEach(([e,us])=>{
     const mine=us.some(u=>u.id===ME.id);
     const b=document.createElement("button");b.className="rx";
