@@ -26,7 +26,8 @@ MARKERS = {
     "api.py": [("ジョブAPI", "def build_app")],
     "config.py": [("リスト表示の件数", "LIST_PAGE_SIZE")],
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
-    "webui.py": [("Web API", "def add_routes")],
+    "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code")],
+    "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
     "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
 }
 
@@ -136,6 +137,15 @@ def main():
         else:
             line(OK, "公開URL", cfg2.PUBLIC_URL)
             line(OK, "トークン有効期限", f"{cfg2.WEB_TOKEN_DAYS} 日")
+        if cfg2.ACTIVITY_ENABLED:
+            ok_id = bool(cfg2.CLIENT_ID) and cfg2.CLIENT_ID.isdigit()
+            line(OK if ok_id else NG, "CLIENT_ID",
+                 cfg2.CLIENT_ID or "未設定（Activity が動きません）")
+            line(OK if cfg2.CLIENT_SECRET else NG, "CLIENT_SECRET",
+                 "設定済み" if cfg2.CLIENT_SECRET else "未設定")
+            sdk = HERE / "web" / "assets" / "embedded-app-sdk.js"
+            line(OK if sdk.exists() else NG, "Embedded App SDK",
+                 f"{sdk.stat().st_size // 1024} KB" if sdk.exists() else "見つからない")
         idx = HERE / "web" / "index.html"
         line(OK if idx.exists() else NG, "web/index.html",
              f"{idx.stat().st_size // 1024} KB" if idx.exists() else "見つからない")
@@ -217,7 +227,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21i (scan fix + paging)")
+        print("  INFO BUILD 2026-08-21j (discord activity)")
     print()
 
 

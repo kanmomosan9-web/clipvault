@@ -149,3 +149,65 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+async def activity_checks():
+    """Activity 用の経路（/.proxy 配下と CLIENT_ID 埋め込み）を確認する。"""
+    import api
+    import webui
+    from aiohttp.test_utils import TestClient, TestServer
+
+    config.CLIENT_ID = "123456789012345678"
+    config.CDN_PROXY_PREFIX = "/.proxy/cdn"
+
+    tok = webui.new_token()
+    db.issue_token(tok, 4242, "つるかん", 1, days=30)
+    app = api.build_app(FakeClient())
+
+    async with TestClient(TestServer(app)) as cli:
+        H = {"X-ClipVault-Token": tok}
+
+        r = await cli.get("/")
+        body = await r.text()
+        print("CLIENT_ID 埋め込み     ->", config.CLIENT_ID in body)
+        assert "__CLIENT_ID__\"" not in body.replace('window.__CLIENT_ID__', '')
+
+        r = await cli.get("/.proxy/api/clips", headers=H)
+        print("GET /.proxy/api/clips ->", r.status, (await r.json())["total"], "件")
+        assert r.status == 200
+
+        r = await cli.get("/.proxy/api/clips/1", headers=H)
+        d = await r.json()
+        print("   cdn フィールド      ->", d["cdn"][:46])
+        assert "cdn.discordapp.com" in d["cdn"]
+
+        r = await cli.get("/.proxy/thumb/1", headers=H)
+        print("GET /.proxy/thumb/1   ->", r.status)
+
+        r = await cli.post("/.proxy/api/clips/1/reactions", json={"emoji": "🔥"}, headers=H)
+        print("POST /.proxy/...      ->", r.status)
+
+        config.CLIENT_SECRET = "dummy-secret"
+        r = await cli.post("/api/token", json={"code": ""})
+        print("code 空でトークン交換  ->", r.status, "(400 が正しい)")
+        assert r.status == 400
+
+        config.CLIENT_SECRET = ""
+        r = await cli.post("/api/token", json={"code": "x"})
+        print("SECRET 未設定          ->", r.status, "(503 が正しい)")
+        assert r.status == 503
+
+        r = await cli.get("/assets/embedded-app-sdk.js")
+        print("SDK 配信              ->", r.status,
+              f"{len(await r.text()) // 1024} KB")
+        assert r.status == 200
+
+        r = await cli.get("/assets/boot.js")
+        print("boot.js 配信          ->", r.status)
+        assert r.status == 200
+
+    print("\nACTIVITY OK")
+
+
+if __name__ == "__main__" and "--activity" in __import__("sys").argv:
+    asyncio.run(activity_checks())

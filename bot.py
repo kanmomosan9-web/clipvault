@@ -19,7 +19,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21i (scan fix + paging)"
+BUILD = "2026-08-21j (discord activity)"
 
 intents = discord.Intents.default()
 intents.message_content = True

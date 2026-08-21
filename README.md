@@ -96,7 +96,7 @@ bot.py       取り込み、GridView / ListView / ClipView / EditModal、スラ�
 worker.py    文字起こしワーカー（別プロセスで起動）
 api.py       ジョブAPI（リモートワーカー用のHTTPエンドポイント）
 webui.py     Web ライブラリの REST API と静的配信
-web/         ブラウザ版 UI（index.html 単体）
+web/         ブラウザ版 UI（index.html + assets/）
 dc.py        添付URLの再取得ヘルパー
 doctor.py    環境とファイル版の診断
 deploy/      systemdユニット、VMセットアップ、ネットワーク検証、SSHトンネル
@@ -146,7 +146,7 @@ botとは**別プロセス**で動く。gatewayを数十秒ブロックすると
 
 `WORKER_GRACE_SECONDS` 秒だけ待ってからジョブを取るように設定できるので、**GPUマシンを即時・CPUマシンを遅延にすれば自動でフェイルオーバーする**。GPU側は空き時間に低品質モデルで処理された分を自動で取り直す（`AUTO_UPGRADE=1`）。
 
-クラウド構成は `DEPLOY.md`、Oracle Cloud は `ORACLE.md`、ネットワークは `NETWORK.md`、GitHub は `GITHUB.md`、**ブラウザ版ライブラリは `WEB.md`** を参照。
+クラウド構成は `DEPLOY.md`、Oracle Cloud は `ORACLE.md`、ネットワークは `NETWORK.md`、GitHub は `GITHUB.md`、**ブラウザ版ライブラリは `WEB.md`**、**Discord Activity 化は `ACTIVITY.md`** を参照。
 
 ### 導入
 

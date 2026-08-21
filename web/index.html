@@ -270,12 +270,16 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
 </main>
 
 <script>
+window.__CLIENT_ID__ = "__CLIENT_ID__";
+window.__CDN_PREFIX__ = "__CDN_PREFIX__";
+const P = () => window.CV_PREFIX || "";
+const AUTH = () => window.CV_TOKEN ? {"X-ClipVault-Token": window.CV_TOKEN} : {};
 const API={
-  async get(u){const r=await fetch(u,{credentials:"same-origin"});
+  async get(u){const r=await fetch(P()+u,{credentials:"same-origin",headers:AUTH()});
     if(r.status===401)throw new Error("unauthorized");
     if(!r.ok)throw new Error(await r.text());return r.json()},
-  async send(m,u,b){const r=await fetch(u,{method:m,credentials:"same-origin",
-      headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
+  async send(m,u,b){const r=await fetch(P()+u,{method:m,credentials:"same-origin",
+      headers:{"Content-Type":"application/json",...AUTH()},body:JSON.stringify(b||{})});
     if(!r.ok)throw new Error(await r.text());return r.json()},
 };
 const PALETTE=["🔥","😂","👏","😱","💀","🧠","🎯","❤️"];
@@ -334,7 +338,7 @@ function qs(){
 function cardFor(c){
   const b=document.createElement("button");b.className="card";
   b.innerHTML=`<div class="thumb cut">
-    <img src="${c.thumb}" alt="" loading="lazy"><div class="scan"></div>
+    <img src="${P()+c.thumb}" alt="" loading="lazy"><div class="scan"></div>
     <span class="star">★${c.stars}</span><span class="badge">${mmss(c.duration)}</span>
     <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
     <div class="meta"><div class="title">${hi(c.title)}</div>
@@ -380,15 +384,30 @@ function observe(){
   io.observe($("more"));
 }
 
+function mediaSrc(c){
+  // Activity 内では外部ドメインへ直接アクセスできない。
+  // URL Mappings で cdn.discordapp.com に割り当てたプレフィックス経由にする。
+  if(window.CV_ACTIVITY&&c.cdn){
+    try{const u=new URL(c.cdn);return window.__CDN_PREFIX__+u.pathname+u.search}
+    catch(e){/* 不正なURLなら通常経路にフォールバック */}
+  }
+  return P()+c.media;
+}
+
 async function openClip(id){
   cur=await API.get("/api/clips/"+id);
   $("grid").hidden=true;$("empty").hidden=true;$("more").hidden=true;$("player").classList.add("on");
   $("ptitle").textContent=cur.title;
   $("pmeta").textContent=`${cur.by} · ${cur.date} · ${cur.width}x${cur.height} · ${mmss(cur.duration)}`;
   $("jump").href=cur.jump;
+  $("jump").onclick=e=>{
+    if(!window.CV_ACTIVITY)return;
+    e.preventDefault();
+    window.__discordSdk?.commands.openExternalLink({url:cur.jump});
+  };
   const box=$("screen");box.innerHTML="";
   vid=document.createElement("video");
-  vid.src=cur.media;vid.poster=cur.thumb;vid.controls=true;vid.autoplay=true;
+  vid.src=mediaSrc(cur);vid.poster=P()+cur.thumb;vid.controls=true;vid.autoplay=true;
   vid.playsInline=true;vid.preload="metadata";
   vid.ontimeupdate=sync;vid.onloadedmetadata=drawMarks;
   box.appendChild(vid);
@@ -480,7 +499,7 @@ function drawComments(){
     const j=d.querySelector(".jump");if(j)j.onclick=()=>seek(c.at);
     if(c.user_id===ME.id){
       const x=document.createElement("button");x.className="del";x.textContent="削除";
-      x.onclick=async()=>{await fetch("/api/comments/"+c.id,{method:"DELETE",credentials:"same-origin"});
+      x.onclick=async()=>{await fetch(P()+"/api/comments/"+c.id,{method:"DELETE",credentials:"same-origin",headers:AUTH()});
         cur.comments=cur.comments.filter(y=>y.id!==c.id);drawComments();drawMarks()};
       d.querySelector(".cm-h").appendChild(x)}
     h.appendChild(d)});

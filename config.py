@@ -92,6 +92,16 @@ WEB_ENABLED = os.getenv("WEB_ENABLED", "1") == "1"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
 
+# Discord Activity（Discord 内の iframe で動かす）
+# CLIENT_ID は Developer Portal の General Information、
+# CLIENT_SECRET は OAuth2 タブで取得する。
+ACTIVITY_ENABLED = os.getenv("ACTIVITY_ENABLED", "1") == "1"
+CLIENT_ID = os.getenv("CLIENT_ID", "")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET", "")
+# Activity 内では全通信が Discord のプロキシを通るため、
+# 外部ドメインは URL Mappings で宣言したプレフィックス配下に置く。
+CDN_PROXY_PREFIX = os.getenv("CDN_PROXY_PREFIX", "/.proxy/cdn")
+
 # 自然な文章をプロンプトに入れるとそのまま出力されやすい（幻覚）。
 # 語彙リストのみに留めること。既定は空。
 BASE_PROMPT = os.getenv("BASE_PROMPT", "")

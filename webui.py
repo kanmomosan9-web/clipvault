@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import aiohttp
 import secrets
 from pathlib import Path
 from aiohttp import web
@@ -70,6 +71,26 @@ def _clip_brief(row, tags, reacts, comments) -> dict:
     }
 
 
+async def exchange_code(code: str) -> dict:
+    """Activity から渡された認可コードをアクセストークンに交換する。
+
+    client_secret を使うのでブラウザ側では絶対にやらない。必ずサーバー経由。
+    """
+    data = {"client_id": config.CLIENT_ID, "client_secret": config.CLIENT_SECRET,
+            "grant_type": "authorization_code", "code": code}
+    async with aiohttp.ClientSession() as sess:
+        async with sess.post("https://discord.com/api/oauth2/token", data=data) as r:
+            if r.status != 200:
+                raise RuntimeError(f"token exchange failed: {r.status} {await r.text()}")
+            tok = await r.json()
+        async with sess.get("https://discord.com/api/users/@me",
+                            headers={"Authorization": f"Bearer {tok['access_token']}"}) as r:
+            if r.status != 200:
+                raise RuntimeError(f"user fetch failed: {r.status}")
+            user = await r.json()
+    return {"access_token": tok["access_token"], "user": user}
+
+
 def add_routes(app: web.Application, client) -> None:
 
     # ------------------------------------------------------------ session
@@ -129,6 +150,8 @@ def add_routes(app: web.Application, client) -> None:
         tags = db.get_tags(cid)
         data = _clip_brief(row, tags, len(db.clip_reactions(cid)), 0)
         data["note"] = row["note"]
+        fresh = await dc.fresh_attachment_url(client, row)
+        data["cdn"] = fresh or ""
         data["model"] = row["transcript_model"]
         data["segments"] = db.get_segments(cid)
         data["reactions"] = db.clip_reactions(cid)
@@ -213,6 +236,29 @@ def add_routes(app: web.Application, client) -> None:
         added = db.toggle_reaction(cid, u["user_id"], u["user_name"], emoji)
         return web.json_response({"added": added, "reactions": db.clip_reactions(cid)})
 
+    # ------------------------------------------------------------ activity
+    async def activity_token(request):
+        if not (config.CLIENT_ID and config.CLIENT_SECRET):
+            return web.json_response(
+                {"error": "CLIENT_ID / CLIENT_SECRET が未設定です"}, status=503)
+        body = await request.json()
+        code = str(body.get("code", ""))
+        if not code:
+            return web.json_response({"error": "code required"}, status=400)
+        try:
+            got = await exchange_code(code)
+        except Exception as e:
+            log.error("activity auth failed: %s", e)
+            return web.json_response({"error": "auth failed"}, status=401)
+
+        u = got["user"]
+        name = u.get("global_name") or u.get("username") or "unknown"
+        tok = new_token()
+        db.issue_token(tok, int(u["id"]), name, 0, days=config.WEB_TOKEN_DAYS)
+        log.info("activity login: %s (%s)", name, u["id"])
+        return web.json_response({"access_token": got["access_token"],
+                                  "cv_token": tok, "name": name})
+
     # ------------------------------------------------------------ media
     async def media(request):
         cid = int(request.match_info["id"])
@@ -240,7 +286,11 @@ def add_routes(app: web.Application, client) -> None:
         html = STATIC / "index.html"
         if not html.exists():
             return web.Response(text="web/index.html が見つかりません", status=500)
-        resp = web.FileResponse(html, headers={"Cache-Control": "no-cache"})
+        body = (html.read_text(encoding="utf-8")
+                .replace("__CLIENT_ID__", config.CLIENT_ID)
+                .replace("__CDN_PREFIX__", config.CDN_PROXY_PREFIX))
+        resp = web.Response(text=body, content_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
         tok = request.query.get("t")
         if tok and db.resolve_token(tok):
             resp.set_cookie(COOKIE, tok, max_age=60 * 60 * 24 * 30,
@@ -250,6 +300,7 @@ def add_routes(app: web.Application, client) -> None:
     r = app.router
     r.add_get("/", index)
     r.add_get("/app", index)
+    r.add_post("/api/token", activity_token)
     r.add_get("/api/me", require_user(me))
     r.add_get("/api/clips", require_user(clips))
     r.add_get("/api/clips/{id}", require_user(clip_detail))
@@ -263,3 +314,16 @@ def add_routes(app: web.Application, client) -> None:
     r.add_get("/thumb/{id}", require_user(thumb))
     if (STATIC / "assets").is_dir():
         r.add_static("/assets", STATIC / "assets")
+
+    # Activity 内からのリクエストは Discord のプロキシが /.proxy を剥がさずに
+    # 転送してくる構成もあるため、同じハンドラを両方のパスに生やしておく。
+    for route in list(app.router.routes()):
+        info = route.resource.canonical
+        if info.startswith("/.proxy") or info == "/":
+            continue
+        try:
+            app.router.add_route(route.method, "/.proxy" + info, route.handler)
+        except Exception:
+            pass
+    app.router.add_get("/.proxy/", index)
+    app.router.add_get("/.proxy", index)
