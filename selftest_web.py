@@ -134,6 +134,14 @@ async def main():
         r = await get("/thumb/1")
         print("GET /thumb/1          ->", r.status, r.headers.get("Content-Type"))
 
+        # <img> はヘッダーを送れないので ?t= でも通る必要がある
+        r = await cli.get(f"/thumb/1?t={tok}")
+        print("GET /thumb/1?t=       ->", r.status, "(クエリ認証)")
+        assert r.status == 200, "クエリのトークンで認証できない"
+        r = await cli.get("/thumb/1")
+        print("GET /thumb/1 (認証なし) ->", r.status, "(401 が正しい)")
+        assert r.status == 401
+
         r = await cli.get("/?t=" + tok)
         body = await r.text()
         print("GET /                 ->", r.status, len(body), "bytes",

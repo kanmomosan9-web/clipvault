@@ -273,6 +273,11 @@ window.__CLIENT_ID__ = "%%CLIENT_ID%%";
 window.__CDN_PREFIX__ = "%%CDN_PREFIX%%";
 const P = () => window.CV_PREFIX || "";
 const AUTH = () => window.CV_TOKEN ? {"X-ClipVault-Token": window.CV_TOKEN} : {};
+// <img> や <video> はカスタムヘッダーを送れないので、トークンはクエリで渡す。
+// ブラウザ版は Cookie が効くため付かない。
+const SIGN = u => window.CV_TOKEN
+  ? u + (u.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(window.CV_TOKEN)
+  : u;
 const API={
   async get(u){const r=await fetch(P()+u,{credentials:"same-origin",headers:AUTH()});
     if(r.status===401)throw new Error("unauthorized");
@@ -334,21 +339,23 @@ function qs(){
   return p.toString();
 }
 
+const cardEls=new Map();
+
 function cardFor(c){
   const b=document.createElement("button");b.className="card";
   b.innerHTML=`<div class="thumb cut">
-    <img src="${P()+c.thumb}" alt="" loading="lazy"><div class="scan"></div>
+    <img src="${SIGN(P()+c.thumb)}" alt="" loading="lazy"><div class="scan"></div>
     <span class="star">★${c.stars}</span><span class="badge">${mmss(c.duration)}</span>
     <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
     <div class="meta"><div class="title">${hi(c.title)}</div>
     <div class="sub">${esc(c.by)} · ${c.date}${c.comments?" · 💬"+c.comments:""}</div>
     <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
       c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>`;
-  b.onclick=()=>openClip(c.id);return b;
+  b.onclick=()=>openClip(c.id);cardEls.set(c.id,b);return b;
 }
 
 function reset(){
-  offset=0;done=false;items=[];$("grid").innerHTML="";
+  offset=0;done=false;items=[];cardEls.clear();$("grid").innerHTML="";
   if(io){io.disconnect();io=null}
   return load().catch(err);
 }
@@ -397,10 +404,14 @@ function mediaSrc(c){
     try{const u=new URL(c.cdn);return window.__CDN_PREFIX__+u.pathname+u.search}
     catch(e){/* 不正なURLなら通常経路にフォールバック */}
   }
-  return P()+c.media;
+  return SIGN(P()+c.media);
 }
 
+let stageTop=0;
+
 async function openClip(id){
+  const stage=document.querySelector(".stage");
+  stageTop=stage.scrollTop;          // 一覧の位置を覚えておく
   cur=await API.get("/api/clips/"+id);
   $("grid").hidden=true;$("empty").hidden=true;$("more").hidden=true;$("player").classList.add("on");
   $("ptitle").textContent=cur.title;
@@ -413,15 +424,31 @@ async function openClip(id){
   };
   const box=$("screen");box.innerHTML="";
   vid=document.createElement("video");
-  vid.src=mediaSrc(cur);vid.poster=P()+cur.thumb;vid.controls=true;vid.autoplay=true;
+  vid.src=mediaSrc(cur);vid.poster=SIGN(P()+cur.thumb);vid.controls=true;vid.autoplay=true;
   vid.playsInline=true;vid.preload="metadata";
   vid.ontimeupdate=sync;vid.onloadedmetadata=drawMarks;
   box.appendChild(vid);
   drawTags();drawReacts();drawLines();drawComments();drawMarks();tab("t");
+  stage.scrollTop=0;                 // プレーヤーを画面の先頭に出す
 }
 function closeClip(){
   if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
-  $("player").classList.remove("on");$("grid").hidden=false;facets();reset();
+  $("player").classList.remove("on");
+  $("grid").hidden=false;$("more").hidden=items.length===0;
+  refreshCard();                     // 編集内容をカードに反映
+  facets();
+  // 読み込み済みのカードは捨てず、見ていた位置に戻す
+  requestAnimationFrame(()=>{document.querySelector(".stage").scrollTop=stageTop});
+}
+
+function refreshCard(){
+  if(!cur)return;
+  const i=items.findIndex(x=>x.id===cur.id);
+  if(i<0)return;
+  Object.assign(items[i],{title:cur.title,tags:cur.tags,game:cur.game,
+    stars:cur.stars,comments:cur.comments.length});
+  const old=cardEls.get(cur.id);
+  if(old&&old.parentNode){const fresh=cardFor(items[i]);old.replaceWith(fresh)}
 }
 const seek=t=>{if(!vid)return;vid.currentTime=t;vid.play().catch(()=>{})};
 
