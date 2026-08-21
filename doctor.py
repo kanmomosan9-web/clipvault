@@ -27,6 +27,7 @@ MARKERS = {
     "config.py": [("リスト表示の件数", "LIST_PAGE_SIZE")],
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
     "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code")],
+    "sync.py": [("コメント同期", "def push_comment"), ("リアクション同期", "def push_reaction")],
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
     "web/assets/fonts.css": [("同梱フォント", "font-face")],
     "selftest_commands.py": [("コマンド欠落検査", "EXPECTED")],
@@ -169,6 +170,10 @@ def main():
             sdk = HERE / "web" / "assets" / "embedded-app-sdk.js"
             line(OK if sdk.exists() else NG, "Embedded App SDK",
                  f"{sdk.stat().st_size // 1024} KB" if sdk.exists() else "見つからない")
+        line(OK if cfg2.SYNC_COMMENTS else WARN, "コメント同期",
+             "有効" if cfg2.SYNC_COMMENTS else "無効（SYNC_COMMENTS=0）")
+        line(OK if cfg2.SYNC_REACTIONS else WARN, "リアクション同期",
+             "有効" if cfg2.SYNC_REACTIONS else "無効（SYNC_REACTIONS=0）")
         idx = HERE / "web" / "index.html"
         line(OK if idx.exists() else NG, "web/index.html",
              f"{idx.stat().st_size // 1024} KB" if idx.exists() else "見つからない")
@@ -254,7 +259,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21q (inline player)")
+        print("  INFO BUILD 2026-08-21s (favorites)")
     print()
 
 

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS clips (
     transcript    TEXT    NOT NULL DEFAULT '',
     transcript_model TEXT NOT NULL DEFAULT '',
     segments      TEXT    NOT NULL DEFAULT '',
+    thread_id     INTEGER,
     UNIQUE (message_id, attachment_id)
 );
 
@@ -73,6 +74,22 @@ CREATE TABLE IF NOT EXISTS reactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reactions_clip ON reactions(clip_id);
+
+CREATE TABLE IF NOT EXISTS favorites (
+    clip_id    INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL,
+    created_at TEXT    NOT NULL,
+    PRIMARY KEY (clip_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    channel_id INTEGER PRIMARY KEY,
+    webhook_id INTEGER NOT NULL,
+    token      TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS web_tokens (
     token      TEXT PRIMARY KEY,
@@ -139,7 +156,8 @@ def _needs_message_id_migration(c: sqlite3.Connection) -> bool:
 def _migrate(c: sqlite3.Connection) -> None:
     cols = [r["name"] for r in c.execute("PRAGMA table_info(clips)")]
     for name, ddl in (("segments", "TEXT NOT NULL DEFAULT ''"),
-                      ("transcript_model", "TEXT NOT NULL DEFAULT ''")):
+                      ("transcript_model", "TEXT NOT NULL DEFAULT ''"),
+                      ("thread_id", "INTEGER")):
         if name not in cols:
             c.execute(f"ALTER TABLE clips ADD COLUMN {name} {ddl}")
     jcols = [r["name"] for r in c.execute("PRAGMA table_info(jobs)")]
@@ -451,6 +469,7 @@ def query_clips(
     query: str = "",
     tag_ids: Optional[list[int]] = None,
     uploader_id: Optional[int] = None,
+    favorite_of: Optional[int] = None,
     sort: str = "new",
     offset: int = 0,
     limit: int = 9,
@@ -484,6 +503,10 @@ def query_clips(
     if uploader_id:
         where.append("c.uploader_id = ?")
         params.append(uploader_id)
+
+    if favorite_of:
+        where.append("c.id IN (SELECT clip_id FROM favorites WHERE user_id = ?)")
+        params.append(favorite_of)
 
     clause = " AND ".join(where)
     total = c.execute(f"SELECT COUNT(*) n FROM clips c WHERE {clause}", params).fetchone()["n"]
@@ -568,6 +591,83 @@ def clip_reactions(clip_id: int) -> dict[str, list[dict]]:
 def reaction_counts() -> dict[int, int]:
     return {r["clip_id"]: r["n"] for r in connect().execute(
         "SELECT clip_id, COUNT(*) n FROM reactions GROUP BY clip_id")}
+
+
+# ---------- favorites（個人ごと） ----------
+
+def toggle_favorite(clip_id: int, user_id: int) -> bool:
+    """付いていれば外し、無ければ付ける。付けたら True。"""
+    c = connect()
+    cur = c.execute("DELETE FROM favorites WHERE clip_id = ? AND user_id = ?",
+                    (clip_id, user_id))
+    if cur.rowcount:
+        c.commit()
+        return False
+    c.execute("INSERT INTO favorites (clip_id, user_id, created_at) VALUES (?, ?, ?)",
+              (clip_id, user_id, datetime.now(timezone.utc).isoformat()))
+    c.commit()
+    return True
+
+
+def favorite_ids(user_id: int) -> set[int]:
+    return {r["clip_id"] for r in connect().execute(
+        "SELECT clip_id FROM favorites WHERE user_id = ?", (user_id,))}
+
+
+def favorite_count(user_id: int) -> int:
+    return connect().execute(
+        "SELECT COUNT(*) n FROM favorites WHERE user_id = ?", (user_id,)).fetchone()["n"]
+
+
+def is_favorite(clip_id: int, user_id: int) -> bool:
+    return connect().execute(
+        "SELECT 1 FROM favorites WHERE clip_id = ? AND user_id = ?",
+        (clip_id, user_id)).fetchone() is not None
+
+
+# ---------- discord 連携 ----------
+
+def set_thread(clip_id: int, thread_id: int) -> None:
+    c = connect()
+    c.execute("UPDATE clips SET thread_id = ? WHERE id = ?", (thread_id, clip_id))
+    c.commit()
+
+
+def clip_by_thread(thread_id: int) -> Optional[sqlite3.Row]:
+    return connect().execute(
+        "SELECT * FROM clips WHERE thread_id = ?", (thread_id,)).fetchone()
+
+
+def get_webhook(channel_id: int) -> Optional[sqlite3.Row]:
+    return connect().execute(
+        "SELECT * FROM webhooks WHERE channel_id = ?", (channel_id,)).fetchone()
+
+
+def save_webhook(channel_id: int, webhook_id: int, token: str) -> None:
+    c = connect()
+    c.execute(
+        "INSERT OR REPLACE INTO webhooks (channel_id, webhook_id, token, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (channel_id, webhook_id, token, datetime.now(timezone.utc).isoformat()))
+    c.commit()
+
+
+def drop_webhook(channel_id: int) -> None:
+    c = connect()
+    c.execute("DELETE FROM webhooks WHERE channel_id = ?", (channel_id,))
+    c.commit()
+
+
+def comment_by_message(message_id: int) -> Optional[sqlite3.Row]:
+    return connect().execute(
+        "SELECT * FROM comments WHERE thread_message_id = ?", (message_id,)).fetchone()
+
+
+def delete_comment_by_message(message_id: int) -> bool:
+    c = connect()
+    cur = c.execute("DELETE FROM comments WHERE thread_message_id = ?", (message_id,))
+    c.commit()
+    return cur.rowcount > 0
 
 
 # ---------- web tokens ----------

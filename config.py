@@ -92,6 +92,13 @@ WEB_ENABLED = os.getenv("WEB_ENABLED", "1") == "1"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
 
+# Web と Discord の相互同期
+# コメント: クリップのスレッドへ Webhook で本人名義で投稿し、
+#           スレッドに直接書かれたものも取り込む。
+# リアクション: Discord API に代理付与の手段が無いため bot 名義になる。
+SYNC_COMMENTS = os.getenv("SYNC_COMMENTS", "1") == "1"
+SYNC_REACTIONS = os.getenv("SYNC_REACTIONS", "1") == "1"
+
 # Discord Activity（Discord 内の iframe で動かす）
 # CLIENT_ID は Developer Portal の General Information、
 # CLIENT_SECRET は OAuth2 タブで取得する。

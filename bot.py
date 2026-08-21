@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import api
+import sync
 import webui
 import config
 import db
@@ -19,7 +20,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21q (inline player)"
+BUILD = "2026-08-21s (favorites)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -39,7 +40,17 @@ INGEST_MARK = "📼"
 
 
 def count_reactions(message: discord.Message) -> int:
-    return sum(r.count for r in message.reactions if str(r.emoji) != INGEST_MARK)
+    """Discord 側のリアクション数。
+
+    Web から付けたぶんは bot 名義でメッセージにも付くため、
+    そのまま数えると DB 側と二重計上になる。bot 自身の分は差し引く。
+    """
+    total = 0
+    for r in message.reactions:
+        if str(r.emoji) == INGEST_MARK:
+            continue
+        total += max(r.count - (1 if r.me else 0), 0)
+    return total
 
 
 async def ingest_message(message: discord.Message) -> list[int]:
@@ -126,9 +137,25 @@ async def on_ready():
     log.info("logged in as %s | storage channels: %s", bot.user, config.STORAGE_CHANNEL_IDS)
 
 
+async def on_web_comment(clip_id, comment_id, user_id, user_name, body, at):
+    await sync.push_comment(bot, clip_id, comment_id, user_id, user_name, body, at)
+
+
+async def on_web_reaction(clip_id, emoji, added):
+    await sync.push_reaction(bot, clip_id, emoji, added)
+
+
+bot.on_web_comment = on_web_comment
+bot.on_web_reaction = on_web_reaction
+
+
 @bot.event
 async def on_message(message: discord.Message):
-    if message.author.bot or not message.guild:
+    if not message.guild:
+        return
+    if await sync.pull_comment(message):
+        return
+    if message.author.bot:
         return
     if message.channel.id in config.STORAGE_CHANNEL_IDS:
         ids = await ingest_message(message)
@@ -162,6 +189,13 @@ async def _sync_reactions(message_id: int, channel_id: int) -> bool:
         return False
     db.set_reactions(message_id, count_reactions(msg))
     return True
+
+
+@bot.event
+async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
+    # スレッド側でコメントが消されたら DB からも消す
+    if db.delete_comment_by_message(payload.message_id):
+        log.info("thread message %s deleted -> comment removed", payload.message_id)
 
 
 @bot.event

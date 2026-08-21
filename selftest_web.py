@@ -127,6 +127,46 @@ async def main():
                              headers={"X-ClipVault-Token": tok})
         print("DELETE comment        ->", await r.json())
 
+        print("\n--- お気に入り ---")
+        r = await get("/api/facets")
+        print("初期件数              ->", (await r.json())["favorites"])
+
+        for cid in (1, 3, 5):
+            rr = await send("POST", f"/api/clips/{cid}/favorite", {})
+            j = await rr.json()
+            print(f"  clip {cid} を追加      -> favorited={j['favorited']} count={j['count']}")
+        assert j["count"] == 3
+
+        r = await get("/api/clips?fav=1")
+        d = await r.json()
+        ids = sorted(x["id"] for x in d["items"])
+        print("お気に入りのみ         ->", d["total"], "件", ids)
+        assert ids == [1, 3, 5]
+        assert all(x["favorited"] for x in d["items"])
+
+        r = await get("/api/clips")
+        d = await r.json()
+        flags = {x["id"]: x["favorited"] for x in d["items"]}
+        print("通常一覧の favorited   ->", {k: v for k, v in flags.items() if v})
+        assert flags.get(1) and not flags.get(2)
+
+        r = await send("POST", "/api/clips/3/favorite", {})
+        print("  clip 3 を解除        ->", await r.json())
+        r = await get("/api/clips?fav=1")
+        print("解除後                ->", (await r.json())["total"], "件")
+        assert (await (await get("/api/clips?fav=1")).json())["total"] == 2
+
+        r = await get("/api/clips?fav=1&q=" + "バロン")
+        print("お気に入り × 検索      ->", (await r.json())["total"], "件")
+
+        # 別ユーザーには影響しない
+        tok2 = webui.new_token()
+        db.issue_token(tok2, 9999, "たいち", 1, days=30)
+        r = await cli.get("/api/clips?fav=1", headers={"X-ClipVault-Token": tok2})
+        print("別ユーザーのお気に入り  ->", (await r.json())["total"], "件 (0 が正しい)")
+        assert (await (await cli.get("/api/clips?fav=1",
+                headers={"X-ClipVault-Token": tok2})).json())["total"] == 0
+
         r = await get("/media/1", allow_redirects=False)
         print("GET /media/1          ->", r.status, r.headers.get("Location", "")[:52])
         assert r.status == 302 and "FRESH" in r.headers["Location"]

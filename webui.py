@@ -49,7 +49,7 @@ def new_token() -> str:
 
 # ---------------------------------------------------------------- shaping
 
-def _clip_brief(row, tags, reacts, comments) -> dict:
+def _clip_brief(row, tags, reacts, comments, faved=False) -> dict:
     return {
         "id": row["id"],
         "title": row["title"] or Path(row["filename"]).stem,
@@ -66,6 +66,7 @@ def _clip_brief(row, tags, reacts, comments) -> dict:
         "stars": row["reactions"] + reacts,
         "comments": comments,
         "has_transcript": bool(row["transcript"]),
+        "favorited": faved,
         "thumb": f"/thumb/{row['id']}",
         "media": f"/media/{row['id']}",
         "jump": (f"https://discord.com/channels/{row['guild_id']}"
@@ -117,20 +118,25 @@ def add_routes(app: web.Application, client) -> None:
             tid = db.resolve_tag(game, create=False)
             if tid:
                 tag_ids.append(tid)
+        me_id = request["user"]["user_id"]
+        only_fav = request.query.get("fav") == "1"
         by = request.query.get("by", "")
         uploader_id = db.uploader_id_by_name(by) if by else None
         if by and uploader_id is None:
             return web.json_response({"total": 0, "items": []})
 
         rows, total = db.query_clips(query=q, tag_ids=tag_ids,
-                                     uploader_id=uploader_id, sort=sort,
-                                     offset=offset, limit=limit)
+                                     uploader_id=uploader_id,
+                                     favorite_of=me_id if only_fav else None,
+                                     sort=sort, offset=offset, limit=limit)
 
         rcount, ccount = db.reaction_counts(), db.comment_counts()
+        favs = db.favorite_ids(me_id)
         items = []
         for r in rows:
             tags = db.get_tags(r["id"])
-            item = _clip_brief(r, tags, rcount.get(r["id"], 0), ccount.get(r["id"], 0))
+            item = _clip_brief(r, tags, rcount.get(r["id"], 0),
+                               ccount.get(r["id"], 0), r["id"] in favs)
             segs = db.get_segments(r["id"])
             item["preview"] = None
             if q and segs:
@@ -150,7 +156,8 @@ def add_routes(app: web.Application, client) -> None:
         if row is None:
             return web.json_response({"error": "not found"}, status=404)
         tags = db.get_tags(cid)
-        data = _clip_brief(row, tags, len(db.clip_reactions(cid)), 0)
+        data = _clip_brief(row, tags, len(db.clip_reactions(cid)), 0,
+                           db.is_favorite(cid, request["user"]["user_id"]))
         data["note"] = row["note"]
         fresh = await dc.fresh_attachment_url(client, row)
         data["cdn"] = fresh or ""
@@ -178,7 +185,9 @@ def add_routes(app: web.Application, client) -> None:
                   db.connect().execute(
                       "SELECT uploader_name, COUNT(*) n FROM clips "
                       "GROUP BY uploader_name ORDER BY n DESC")]
-        return web.json_response({"games": games, "tags": tags, "members": people})
+        return web.json_response({"games": games, "tags": tags, "members": people,
+                                  "favorites": db.favorite_count(
+                                      request["user"]["user_id"])})
 
     # ------------------------------------------------------------ mutations
     async def set_tags(request):
@@ -216,9 +225,10 @@ def add_routes(app: web.Application, client) -> None:
         at = body.get("at")
         at = float(at) if at is not None else None
         comment_id = db.add_comment(cid, u["user_id"], u["user_name"], text, at)
-        hook = app.get("on_comment")
+        hook = getattr(client, "on_web_comment", None)
         if hook:
-            asyncio.create_task(hook(cid, comment_id, u["user_name"], text, at))
+            asyncio.create_task(
+                hook(cid, comment_id, u["user_id"], u["user_name"], text, at))
         return web.json_response({"id": comment_id})
 
     async def delete_comment(request):
@@ -236,6 +246,9 @@ def add_routes(app: web.Application, client) -> None:
         if not emoji:
             return web.json_response({"error": "empty"}, status=400)
         added = db.toggle_reaction(cid, u["user_id"], u["user_name"], emoji)
+        hook = getattr(client, "on_web_reaction", None)
+        if hook:
+            asyncio.create_task(hook(cid, emoji, added))
         return web.json_response({"added": added, "reactions": db.clip_reactions(cid)})
 
     # ------------------------------------------------------------ activity
@@ -260,6 +273,15 @@ def add_routes(app: web.Application, client) -> None:
         log.info("activity login: %s (%s)", name, u["id"])
         return web.json_response({"access_token": got["access_token"],
                                   "cv_token": tok, "name": name})
+
+    async def favorite(request):
+        cid = int(request.match_info["id"])
+        if db.get_clip(cid) is None:
+            return web.json_response({"error": "not found"}, status=404)
+        me_id = request["user"]["user_id"]
+        added = db.toggle_favorite(cid, me_id)
+        return web.json_response({"favorited": added,
+                                  "count": db.favorite_count(me_id)})
 
     # ------------------------------------------------------------ media
     async def media(request):
@@ -329,6 +351,7 @@ def add_routes(app: web.Application, client) -> None:
     r.add_post("/api/clips/{id}/comments", require_user(post_comment))
     r.add_delete("/api/comments/{id}", require_user(delete_comment))
     r.add_post("/api/clips/{id}/reactions", require_user(react))
+    r.add_post("/api/clips/{id}/favorite", require_user(favorite))
     r.add_get("/media/{id}", require_user(media))
     r.add_get("/thumb/{id}", require_user(thumb))
     if (STATIC / "assets").is_dir():
