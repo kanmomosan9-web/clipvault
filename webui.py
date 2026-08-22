@@ -99,7 +99,13 @@ def add_routes(app: web.Application, client) -> None:
     # ------------------------------------------------------------ session
     async def me(request):
         u = request["user"]
-        return web.json_response({"id": str(u["user_id"]), "name": u["user_name"]})
+        base = config.PUBLIC_URL
+        tok = _token_from(request)
+        return web.json_response({
+            "id": str(u["user_id"]), "name": u["user_name"],
+            # 再生できない環境から外部ブラウザへ逃がすためのURL
+            "browser_url": f"{base}/?t={tok}" if base and tok else "",
+        })
 
     # ------------------------------------------------------------ listing
     async def clips(request):

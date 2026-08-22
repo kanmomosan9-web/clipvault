@@ -34,7 +34,10 @@ button{background:none;border:none;cursor:pointer}
 
 header{flex:0 0 auto;display:flex;align-items:center;gap:20px;padding:0 22px;height:56px;
   border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0D141B,#0A1015)}
-.mark{font-family:"Cinzel",serif;font-weight:600;font-size:18px;letter-spacing:.14em;color:var(--gold);white-space:nowrap}
+.mark{font-family:"Cinzel",serif;font-weight:600;font-size:18px;letter-spacing:.14em;
+  color:var(--gold);white-space:nowrap;padding:4px 2px;transition:opacity .12s}
+.mark:hover{opacity:.75}
+.mark:active{opacity:.5}
 .mark span{color:var(--text)}
 .search{flex:1;max-width:520px;position:relative}
 .search input{width:100%;height:34px;padding:0 12px 0 34px;background:var(--surface);
@@ -126,6 +129,15 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .mediaerr .kv span{flex:0 0 90px;color:var(--muted)}
 .mediaerr code{font-family:var(--mono);font-size:11.5px;color:var(--gold);word-break:break-all}
 .mediaerr p{margin-top:9px;font-size:11.5px}
+.mediaerr p.lead{margin:0 0 10px;font-size:12.5px;color:var(--text);line-height:1.7}
+.mediaerr p.lead b{display:inline;color:var(--gold);font-size:inherit}
+.errbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.errbtns button,.errbtns a{
+  padding:5px 13px;border:1px solid var(--gold-dim);color:var(--gold);
+  font-size:12.5px;background:none;text-decoration:none;cursor:pointer;
+}
+.errbtns button:hover,.errbtns a:hover{background:#1E1A12;border-color:var(--gold)}
+.errbtns button:disabled{opacity:.35;cursor:default}
 .screen:empty::after{content:"読み込み中";position:absolute;inset:0;display:grid;
   place-items:center;color:var(--muted);font-size:12px}
 
@@ -240,7 +252,7 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
 <body>
 
 <header>
-  <div class="mark">CLIP<span>VAULT</span></div>
+  <button class="mark" id="home" title="一覧に戻る（すべての条件を解除）">CLIP<span>VAULT</span></button>
   <div class="search">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
     <input id="q" placeholder="タイトル・タグ・セリフ・コメントを検索" autocomplete="off">
@@ -534,12 +546,34 @@ async function reportMedia(vid,src,phase){
 function showMediaError(d){
   const box=$("mediaerr");
   box.hidden=false;
+  const decode=d.probeStatus===200||d.probeStatus===206;
   box.innerHTML=`<b>この環境では再生できませんでした</b>
+    ${decode?`<p class="lead">動画は正しく届いています。<b>デスクトップ版 Discord の
+      デコーダ</b>が初期化に失敗しました。設定 → 詳細設定 →
+      <b>ハードウェアアクセラレーション</b>を切り替えると直ることがあります。</p>`:""}
     <div class="kv"><span>エラー</span><code>code ${d.errorCode??"-"}</code></div>
     <div class="kv"><span>取得</span><code>${d.probeStatus??"-"} ${d.probeType||""}</code></div>
     <div class="kv"><span>H.264/AAC</span><code>${d.codecs.mp4_h264_aac}</code></div>
-    <div class="kv"><span>経路</span><code>${d.src.slice(0,72)}</code></div>
-    <p>この内容はサーバーにも記録されました。ブラウザ版なら再生できる場合があります。</p>`;
+    <div class="errbtns">
+      <button id="err-jump">▶ Discord で再生</button>
+      <button id="err-browser">🌐 ブラウザで開く</button>
+      <a id="err-dl" download>⬇ ダウンロード</a>
+    </div>
+    <p>この内容はサーバーにも記録されました。</p>`;
+
+  const open=url=>{
+    if(window.CV_ACTIVITY&&window.__discordSdk){
+      window.__discordSdk.commands.openExternalLink({url});
+    }else{
+      window.open(url,"_blank","noopener");
+    }
+  };
+  $("err-jump").onclick=()=>open(cur.jump);
+  const bu=ME.browser_url;
+  const bb=$("err-browser");
+  if(bu)bb.onclick=()=>open(bu);else bb.disabled=true;
+  const dl=$("err-dl");
+  dl.href=d.src;dl.setAttribute("download",(cur.title||"clip")+".mp4");
 }
 function mediaSrc(c){
   if(!window.CV_ACTIVITY)return SIGN(P()+c.media);
@@ -752,6 +786,31 @@ function sync(){
   if(kids[idx]&&$("pane-t").classList.contains("on"))
     kids[idx].scrollIntoView({block:"nearest",behavior:"smooth"});
 }
+// 読み込みに失敗して止まったときの復帰口も兼ねる。
+// 絞り込み・検索・開いているクリップをすべて解除して読み直す。
+async function goHome(){
+  if(vid){try{vid.pause()}catch(e){}}
+  const pl=$("player");
+  if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
+  pl.classList.remove("on","inline");
+  openId=null;cur=null;vid=null;
+  filters={game:null,tag:null,by:null};
+  onlyFav=false;query="";$("q").value="";
+  $("sort").value="new";
+  loading=false;                 // 失敗して立ったままのフラグを解除
+  $("mediaerr").hidden=true;
+  $("empty").hidden=true;
+  $("empty").innerHTML=`<b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。`;
+  document.querySelector(".stage").scrollTop=0;
+  try{await facets()}catch(e){console.warn("[clipvault] facets 失敗",e)}
+  reset();
+}
+$("home").onclick=goHome;
+
+// 状態の外部公開。テストと不具合報告のためだけに使う。
+window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
+  items:items.length,mediaMode});
+
 $("more").onclick=()=>{if(!done)load()};
 $("back").onclick=closeClip;
 $("tab-t").onclick=()=>tab("t");$("tab-c").onclick=()=>tab("c");

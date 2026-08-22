@@ -45,7 +45,16 @@ function fakeFetch(url, init) {
     ok: true, status: 200, json: () => Promise.resolve(o),
     text: () => Promise.resolve(JSON.stringify(o)),
   });
-  if (u.includes("/api/me")) return json({ id: "4242", name: "つるかん" });
+  if (init && init.headers && init.headers.Range) {
+    // 動画のプローブ。データは届いているがデコードできない状況を再現する
+    return Promise.resolve({
+      ok: true, status: 206,
+      headers: { get: (k) => (k === "Content-Type" ? "video/mp4" : null) },
+    });
+  }
+  if (u.includes("/api/me")) return json({ id: "4242", name: "つるかん",
+    browser_url: "https://clipvault.example.ts.net/?t=TOK" });
+  if (u.includes("/api/log")) return json({ ok: true });
   if (u.includes("/api/facets")) return json(FACETS);
   if (u.includes("/favorite")) return json({ favorited: true, count: 2 });
   if (u.includes("/reactions")) return json({ added: true, reactions: DETAIL.reactions });
@@ -167,6 +176,56 @@ async function boot(activity) {
   console.log("     src =", src2);
   check(src2.includes("/media/1?stream=1"), "VM 中継へ切り替わる");
   check(src2.includes("t=TOK"), "中継にはトークンが付く");
+
+  console.log("\n=== ロゴで復帰 ===");
+  // 検索・絞り込み・プレーヤーを開いた状態を作る
+  // 検索とタグ絞り込みを実際の操作で作る
+  $a("q").value = "バロン";
+  $a("q").oninput({ target: $a("q") });
+  wa.document.querySelector("#games .tag").onclick();
+  $a("myrail").querySelector(".tag").onclick();
+  await new Promise((r) => setTimeout(r, 300));
+
+  const before = wa.__state();
+  console.log("     絞り込み後:", JSON.stringify(
+    { query: before.query, game: before.filters.game, fav: before.onlyFav }));
+  check(before.query === "バロン", "検索語が入っている");
+  check(before.filters.game === "LoL", "タグ絞り込みが効いている");
+  check(before.onlyFav === true, "お気に入り絞り込みが効いている");
+
+  wa.document.querySelectorAll(".card")[0].onclick();
+  await new Promise((r) => setTimeout(r, 80));
+  check($a("player").classList.contains("on"), "プレーヤーが開いている");
+
+  $a("home").onclick();
+  await new Promise((r) => setTimeout(r, 120));
+
+  const after = wa.__state();
+  check(!$a("player").classList.contains("on"), "プレーヤーが閉じた");
+  check($a("q").value === "" && after.query === "", "検索語が消えた");
+  check(after.onlyFav === false, "お気に入り絞り込みが解除された");
+  check(after.filters.game === null, "タグ絞り込みが解除された");
+  check(after.openId === null, "開いているクリップが解除された");
+  check(after.loading === false, "読み込みフラグが解除された");
+  check(wa.document.querySelectorAll(".card").length === 2, "一覧が再取得された");
+  check($a("mediaerr").hidden, "エラーパネルが消えた");
+
+  console.log("\n=== 再生不能時の逃げ道 ===");
+  $a("player").classList.add("on");
+  wa.document.querySelectorAll(".card")[0].onclick();
+  await new Promise((r) => setTimeout(r, 80));
+  const v2 = $a("screen").querySelector("video");
+  v2.dispatchEvent(new wa.window.Event("error"));   // 中継でも失敗
+  await new Promise((r) => setTimeout(r, 120));
+  const err = $a("mediaerr");
+  check(!err.hidden, "エラーパネルが出た");
+  check($a("err-jump") !== null, "Discord で再生ボタン");
+  check($a("err-browser") !== null && !$a("err-browser").disabled,
+        "ブラウザで開くボタン（有効）");
+  check($a("err-dl") !== null && $a("err-dl").href.includes("stream=1"),
+        "ダウンロードリンク");
+  check(err.textContent.includes("ハードウェアアクセラレーション"),
+        "対処の案内が出る");
 
   console.log(`\n${fail.length ? "NG: " + fail.join(" / ") : "DOM OK"}`);
   process.exit(fail.length ? 1 : 0);
