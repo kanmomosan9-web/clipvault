@@ -20,7 +20,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-21w (client diagnostics)"
+BUILD = "2026-08-22a (codec inspector)"
 
 intents = discord.Intents.default()
 intents.message_content = True

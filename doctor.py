@@ -34,6 +34,7 @@ MARKERS = {
     "selftest_dom.js": [("画面の描画検査", "DOM OK")],
     "selftest_media.py": [("動画中継の検査", "Range")],
     "diagnose_media.py": [("動画経路の診断", "URL Mappings")],
+    "inspect_codecs.py": [("コーデック検査", "kUnsupportedConfig")],
     "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
 }
 
@@ -262,7 +263,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-21w (client diagnostics)")
+        print("  INFO BUILD 2026-08-22a (codec inspector)")
     print()
 
 

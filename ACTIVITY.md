@@ -250,6 +250,44 @@ WARNING [client] つるかん / media / {'phase': 'stream', 'errorCode': 4,
 `probeStatus` が 206 なのに `errorCode` が 4 なら、**通信ではなくコーデックの問題**。
 こちらのコードでは解決できない。
 
+### kUnsupportedConfig が出る場合
+
+```
+errorMessage: PipelineStatus::DECODER_ERROR_NOT_SUPPORTED:
+  video decoder initialization failed with DecoderStatus::Codes::kUnsupportedConfig
+probeStatus: 206 video/mp4
+mp4_h264_aac: probably
+```
+
+これは**通信もコーデック対応も問題なく、デコーダの初期化だけが失敗**している状態。
+`canPlayType` は大まかな対応しか答えないので、実際のプロファイルやレベルまでは
+保証しない。
+
+ゲームのキャプチャは H.264 でも 4:4:4 クロマや高いレベルで録られることがあり、
+Electron のデコーダが受け付けないことがある。
+
+クリップの中身を調べる。
+
+```bash
+.venv/bin/python inspect_codecs.py --all
+```
+
+```
+clip 413: League of Legends 2026.08.20 - 21.34.mp4
+  映像 : h264 / High 4:4:4 Predictive / Level 5.1 / yuv444p / 2560x1440
+  !!   プロファイルが特殊: High 4:4:4 Predictive
+  !!   クロマ形式が特殊: yuv444p（4:2:0 でない）
+```
+
+`!!` が付いたら再エンコードで解決できる。
+
+```bash
+ffmpeg -i in.mp4 -c:v libx264 -profile:v high -level 4.1 \
+       -pix_fmt yuv420p -c:a aac -b:a 128k out.mp4
+```
+
+**ブラウザ版やモバイル版では再生できる**ことが多いので、当面はそちらを使うのも手。
+
 ### デスクトップ版で開発者ツールを開く
 
 どうしても Console を見たい場合、設定ファイルで有効にできる。
