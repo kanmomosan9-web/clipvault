@@ -117,6 +117,15 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .pwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
 .screen{position:relative;aspect-ratio:16/9;background:#05080B;border:1px solid var(--line);overflow:hidden}
 .screen video{width:100%;height:100%;display:block;background:#05080B}
+.mediaerr{
+  margin-top:10px;padding:12px 14px;border-left:2px solid var(--danger,#C4433B);
+  background:#17110F;font-size:12.5px;color:var(--muted);
+}
+.mediaerr b{display:block;color:var(--text);font-size:13.5px;margin-bottom:8px}
+.mediaerr .kv{display:flex;gap:10px;margin:3px 0}
+.mediaerr .kv span{flex:0 0 90px;color:var(--muted)}
+.mediaerr code{font-family:var(--mono);font-size:11.5px;color:var(--gold);word-break:break-all}
+.mediaerr p{margin-top:9px;font-size:11.5px}
 .screen:empty::after{content:"読み込み中";position:absolute;inset:0;display:grid;
   place-items:center;color:var(--muted);font-size:12px}
 
@@ -265,6 +274,7 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
       <div class="pwrap">
         <div>
           <div class="screen" id="screen"></div>
+          <div class="mediaerr" id="mediaerr" hidden></div>
           <div class="bar" id="barwrap"><div class="marks" id="marks"></div></div>
 
           <div class="pinfo">
@@ -465,14 +475,76 @@ function observe(){
   io.observe($("more"));
 }
 
+// Activity 内では外部ドメインへ直接アクセスできない（CSP）。
+// 1) URL Mappings で cdn.discordapp.com に割り当てたプレフィックス経由
+// 2) 失敗したら VM が中継する同一オリジンの経路
+// 一度成功した方を覚えて以降はそちらを使う。
+// URLに ?nofallback=1 を付けると中継へ切り替えず、CDN 経路の失敗をそのまま見せる。
+// マッピングが効いているかを切り分けるため。
+let mediaMode=null;   // null=未確定 / "cdn" / "stream"
+const NO_FALLBACK=new URLSearchParams(location.search).get("nofallback")==="1";
+
+function cdnSrc(c){
+  if(!c.cdn)return null;
+  try{const u=new URL(c.cdn);return window.__CDN_PREFIX__+u.pathname+u.search}
+  catch(e){return null}
+}
+function streamSrc(c){
+  return SIGN(P()+c.media+"?stream=1");
+}
+
+// 再生できないときの環境情報を集めてサーバーに送る。
+// デスクトップ版 Discord は開発者ツールを開けないため、
+// journalctl 側で読めるようにする。
+async function reportMedia(vid,src,phase){
+  const v=document.createElement("video");
+  const codec=t=>{const r=v.canPlayType(t);return r||"no"};
+  const detail={
+    phase,
+    src,
+    errorCode:vid&&vid.error?vid.error.code:null,
+    errorMessage:vid&&vid.error?vid.error.message:null,
+    networkState:vid?vid.networkState:null,
+    readyState:vid?vid.readyState:null,
+    activity:!!window.CV_ACTIVITY,
+    prefix:window.CV_PREFIX||"(なし)",
+    ua:navigator.userAgent.slice(0,180),
+    codecs:{
+      mp4_h264_aac:codec('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'),
+      mp4_generic:codec("video/mp4"),
+      webm_vp9:codec('video/webm; codecs="vp9"'),
+    },
+  };
+  try{
+    const r=await fetch(src,{method:"GET",headers:{Range:"bytes=0-1"}});
+    detail.probeStatus=r.status;
+    detail.probeType=r.headers.get("Content-Type");
+  }catch(e){detail.probeStatus="fetch失敗: "+e.message}
+
+  console.error("[clipvault] 診断",detail);
+  showMediaError(detail);
+  try{
+    await fetch(P()+"/api/log",{method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json",...AUTH()},
+      body:JSON.stringify({tag:"media",detail})});
+  }catch(e){/* 送れなくても画面には出ている */}
+  return detail;
+}
+
+function showMediaError(d){
+  const box=$("mediaerr");
+  box.hidden=false;
+  box.innerHTML=`<b>この環境では再生できませんでした</b>
+    <div class="kv"><span>エラー</span><code>code ${d.errorCode??"-"}</code></div>
+    <div class="kv"><span>取得</span><code>${d.probeStatus??"-"} ${d.probeType||""}</code></div>
+    <div class="kv"><span>H.264/AAC</span><code>${d.codecs.mp4_h264_aac}</code></div>
+    <div class="kv"><span>経路</span><code>${d.src.slice(0,72)}</code></div>
+    <p>この内容はサーバーにも記録されました。ブラウザ版なら再生できる場合があります。</p>`;
+}
 function mediaSrc(c){
-  // Activity 内では外部ドメインへ直接アクセスできない。
-  // URL Mappings で cdn.discordapp.com に割り当てたプレフィックス経由にする。
-  if(window.CV_ACTIVITY&&c.cdn){
-    try{const u=new URL(c.cdn);return window.__CDN_PREFIX__+u.pathname+u.search}
-    catch(e){/* 不正なURLなら通常経路にフォールバック */}
-  }
-  return SIGN(P()+c.media);
+  if(!window.CV_ACTIVITY)return SIGN(P()+c.media);
+  if(mediaMode==="stream")return streamSrc(c);
+  return cdnSrc(c)||streamSrc(c);
 }
 
 let openId=null;
@@ -515,10 +587,28 @@ async function openClip(id){
     window.__discordSdk?.commands.openExternalLink({url:cur.jump});
   };
   const box=$("screen");box.innerHTML="";
+  $("mediaerr").hidden=true;
   vid=document.createElement("video");
   vid.src=mediaSrc(cur);vid.poster=SIGN(P()+cur.thumb);vid.controls=true;vid.autoplay=true;
+  console.log("[clipvault] media src =",vid.src);
   vid.playsInline=true;vid.preload="metadata";
-  vid.ontimeupdate=sync;vid.onloadedmetadata=drawMarks;
+  vid.ontimeupdate=sync;
+  vid.onloadedmetadata=()=>{
+    if(window.CV_ACTIVITY&&mediaMode===null){
+      mediaMode="cdn";console.log("[clipvault] media = cdn プロキシ経由");
+    }
+    drawMarks();
+  };
+  vid.onerror=()=>{
+    const src=vid.currentSrc||vid.src;
+    if(window.CV_ACTIVITY&&mediaMode!=="stream"&&!NO_FALLBACK){
+      mediaMode="stream";
+      console.warn("[clipvault] CDN プロキシに失敗。VM 中継へ切り替えます");
+      vid.src=streamSrc(cur);vid.load();vid.play().catch(()=>{});
+      return;
+    }
+    reportMedia(vid,src,mediaMode||"direct");   // 両方だめなら診断を送る
+  };
   box.appendChild(vid);
   drawTags();drawReacts();drawFav();drawLines();drawComments();drawMarks();tab("t");
   placePlayer();

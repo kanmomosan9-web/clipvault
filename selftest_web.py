@@ -167,9 +167,23 @@ async def main():
         assert (await (await cli.get("/api/clips?fav=1",
                 headers={"X-ClipVault-Token": tok2})).json())["total"] == 0
 
+        r = await send("POST", "/api/log",
+                       {"tag": "media", "detail": {"errorCode": 4}})
+        print("POST /api/log         ->", r.status, "(サーバーログに残る)")
+        assert r.status == 200
+        r = await cli.post("/api/log", json={"tag": "x"})
+        print("認証なし               ->", r.status, "(401 が正しい)")
+        assert r.status == 401
+
         r = await get("/media/1", allow_redirects=False)
         print("GET /media/1          ->", r.status, r.headers.get("Location", "")[:52])
         assert r.status == 302 and "FRESH" in r.headers["Location"]
+
+        # Activity 用の中継経路。ここでは「ルートが生きていて認証を通る」
+        # ことだけ見る。上流はダミーURLなので本体の検証は selftest_media.py。
+        r = await get("/media/1?stream=1")
+        print("GET /media/1?stream=1 ->", r.status, "(ルート疎通のみ確認)")
+        assert r.status != 401, "中継経路で認証が通らない"
 
         r = await get("/thumb/1")
         print("GET /thumb/1          ->", r.status, r.headers.get("Content-Type"))

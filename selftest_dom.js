@@ -62,7 +62,7 @@ const check = (cond, label) => {
   if (!cond) fail.push(label);
 };
 
-(async () => {
+async function boot(activity) {
   let html = fs.readFileSync(path.join(__dirname, "web", "index.html"), "utf8");
   html = html.replace("%%CLIENT_ID%%", "123").replace("%%CDN_PREFIX%%", "/.proxy/cdn");
   // boot.js はモジュールなので jsdom では読ませず、ブラウザ相当で起動する
@@ -76,12 +76,20 @@ const check = (cond, label) => {
   w.HTMLMediaElement.prototype.load = () => {};
   w.HTMLMediaElement.prototype.play = () => Promise.resolve();
   w.HTMLMediaElement.prototype.pause = () => {};
-  w.CV_PREFIX = ""; w.CV_ACTIVITY = false;
+  if (activity) {
+    w.CV_PREFIX = "/.proxy"; w.CV_ACTIVITY = true; w.CV_TOKEN = "TOK";
+  } else {
+    w.CV_PREFIX = ""; w.CV_ACTIVITY = false;
+  }
 
   await new Promise((r) => w.addEventListener("load", r));
   await w.__start();
   await new Promise((r) => setTimeout(r, 60));
+  return w;
+}
 
+(async () => {
+  const w = await boot(false);
   const $ = (id) => w.document.getElementById(id);
 
   console.log("\n=== 一覧 ===");
@@ -126,6 +134,39 @@ const check = (cond, label) => {
   check(!player.classList.contains("on"), "プレーヤーが閉じた");
   check(player.parentNode !== $("grid"), "グリッドから外れた");
   check(w.document.querySelectorAll(".card").length === 2, "カードが残っている");
+
+  // ---------------------------------------------------------- Activity
+  console.log("\n=== Activity モード ===");
+  DETAIL.cdn = "https://cdn.discordapp.com/attachments/1/2/c.mp4?ex=A&is=B&hm=C";
+  const wa = await boot(true);
+  const $a = (id) => wa.document.getElementById(id);
+
+  wa.document.querySelectorAll(".card")[0].onclick();
+  await new Promise((r) => setTimeout(r, 80));
+
+  const va = $a("screen").querySelector("video");
+  check(va !== null, "video 要素が生成された");
+  const src = va ? va.getAttribute("src") : "";
+  console.log("     src =", src);
+  check(src.startsWith("/.proxy/cdn/"), "CDN プロキシ経由の src");
+  check(src.includes("ex=A") && src.includes("hm=C"), "署名クエリが保持されている");
+  check(!src.includes("t=TOK"), "CDN 経路にはトークンを付けない");
+
+  const th = wa.document.querySelector(".card img").getAttribute("src");
+  console.log("     thumb =", th);
+  check(th.startsWith("/.proxy/thumb/"), "サムネはプレフィックス付き");
+  check(th.includes("t=TOK"), "サムネにはトークンが付く");
+
+  check($a("lines").querySelectorAll(".line").length === 2, "文字起こしが描画された");
+  check($a("favbtn") !== null, "お気に入りボタンが生存している");
+
+  console.log("\n=== CDN 失敗時のフォールバック ===");
+  va.dispatchEvent(new wa.window.Event("error"));
+  await new Promise((r) => setTimeout(r, 40));
+  const src2 = $a("screen").querySelector("video").getAttribute("src");
+  console.log("     src =", src2);
+  check(src2.includes("/media/1?stream=1"), "VM 中継へ切り替わる");
+  check(src2.includes("t=TOK"), "中継にはトークンが付く");
 
   console.log(`\n${fail.length ? "NG: " + fail.join(" / ") : "DOM OK"}`);
   process.exit(fail.length ? 1 : 0);

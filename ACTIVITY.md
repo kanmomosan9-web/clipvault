@@ -163,6 +163,109 @@ SDK は `web/assets/embedded-app-sdk.js` に**バンドル済みで同梱**し�
 
 Activity では `/library` を使わない。起動するだけでログイン済みになる。
 
+## 動画が再生できないとき
+
+Activity 内は CSP により**同一オリジン以外のメディアを読めない**。
+そのため動画には2つの経路がある。
+
+| 経路 | URL | VM の帯域 |
+|---|---|---|
+| 1. CDN プロキシ | `/.proxy/cdn/attachments/...` | 使わない |
+| 2. VM 中継 | `/media/{id}?stream=1` | 使う |
+
+既定は 1。URL Mappings に `/cdn -> cdn.discordapp.com` が要る。
+**失敗すると自動で 2 に切り替わる**ので、マッピングが無くても再生はできる。
+
+Console でどちらを使っているか分かる。
+
+```
+[clipvault] media = cdn プロキシ経由
+```
+
+```
+[clipvault] CDN プロキシに失敗。VM 中継へ切り替えます
+```
+
+後者が出るなら URL Mappings の `/cdn` を見直す。動作はするが**望ましくない**:
+
+- 動画がVMを往復するので遅く、シークのたびに待たされる
+- Tailscale Funnel はメディア配信向けではない
+- 2 OCPU の ARM で複数人が同時視聴すると詰まる
+- 自動で切り替わるため、壊れていることに気づけない
+
+### 切り分け
+
+まず VM 側で CDN が正常かを確かめる。
+
+```bash
+.venv/bin/python diagnose_media.py
+```
+
+登録すべき Target ホストと、Activity が実際に叩く URL が表示される。
+**`cdn.discordapp.com` 以外が出た場合は、そのホストを登録する。**
+
+次にフォールバックを止めて、CDN 経路の失敗をそのまま見る。
+Activity の URL に `nofallback=1` は付けられないので、ブラウザ版で
+`?nofallback=1` を付けて確認するか、Console の以下を読む。
+
+```
+[clipvault] media src = /.proxy/cdn/attachments/...
+[clipvault] 再生失敗 code= 4 message= ... src= ...
+```
+
+`code=4`（SRC_NOT_SUPPORTED）は URL が読めていない。Network タブで
+その URL のステータスを見る。404 ならマッピング未一致、401/403 なら
+署名クエリが落ちている。
+
+中継はシーク用に Range リクエストを通す。`selftest_media.py` で検証できる。
+
+## デスクトップ版だけ再生できないとき
+
+モバイルやブラウザでは再生できるのにデスクトップ版 Discord だけ駄目、
+という場合はクライアント側の要因が濃厚。デスクトップ版は Electron で動いており、
+メディア再生の実装がブラウザと異なる。
+
+### 開発者ツールが開けない場合の診断
+
+再生に失敗すると、**画面に診断が表示され、同じ内容がサーバーにも送られる**。
+
+```bash
+journalctl -u clipvault-bot -f | grep '\[client\]'
+```
+
+```
+WARNING [client] つるかん / media / {'phase': 'stream', 'errorCode': 4,
+  'probeStatus': 206, 'codecs': {'mp4_h264_aac': 'no', ...}, 'ua': '...'}
+```
+
+読み方:
+
+| 見るところ | 意味 |
+|---|---|
+| `probeStatus` が 200/206 | **データは取れている**。再生できないのはデコード側 |
+| `probeStatus` が 401/403/404 | URL が読めていない。マッピングか認証の問題 |
+| `mp4_h264_aac` が `no` | **その環境が H.264/AAC を再生できない**。クライアント側の制約 |
+| `errorCode` 4 | SRC_NOT_SUPPORTED。形式かURLが受け付けられていない |
+
+`probeStatus` が 206 なのに `errorCode` が 4 なら、**通信ではなくコーデックの問題**。
+こちらのコードでは解決できない。
+
+### デスクトップ版で開発者ツールを開く
+
+どうしても Console を見たい場合、設定ファイルで有効にできる。
+
+1. Discord を完全終了（タスクトレイからも終了）
+2. `%AppData%\discord\settings.json` をメモ帳で開く
+3. 次の行を追加（末尾のカンマに注意）
+
+```json
+"DANGEROUS_ENABLE_DEVTOOLS_ONLY_ENABLE_IF_YOU_KNOW_WHAT_YOURE_DOING": true
+```
+
+4. Discord を起動し、Activity 上で `Ctrl+Shift+I`
+
+確認が済んだら `false` に戻しておくのが無難。
+
 ## 中身が空のとき
 
 パネルは開くのにクリップが1件も出ない場合、**API に到達できていない**。

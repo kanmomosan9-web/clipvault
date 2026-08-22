@@ -251,6 +251,22 @@ def add_routes(app: web.Application, client) -> None:
             asyncio.create_task(hook(cid, emoji, added))
         return web.json_response({"added": added, "reactions": db.clip_reactions(cid)})
 
+    async def client_log(request):
+        """画面側の診断結果を受け取ってサーバーのログに出す。
+
+        デスクトップ版 Discord は開発者ツールを開けないため、
+        journalctl で読めるようにする。
+        """
+        u = request["user"]
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"ok": False}, status=400)
+        tag = str(body.get("tag", "?"))[:40]
+        log.warning("[client] %s / %s / %s", u["user_name"], tag,
+                    str(body.get("detail", ""))[:1200])
+        return web.json_response({"ok": True})
+
     # ------------------------------------------------------------ activity
     async def activity_token(request):
         if not (config.CLIENT_ID and config.CLIENT_SECRET):
@@ -292,8 +308,48 @@ def add_routes(app: web.Application, client) -> None:
         url = await dc.fresh_attachment_url(client, clip)
         if not url:
             return web.Response(status=410, text="attachment unavailable")
-        # VM を経由させず CDN へ直接飛ばす。帯域を消費しない。
-        return web.HTTPFound(url)
+
+        if request.query.get("stream") != "1":
+            # 既定は CDN へ 302。VM の帯域を使わない。
+            return web.HTTPFound(url)
+
+        # Activity 内は CSP により外部オリジンを読めないため、
+        # VM が中継して同一オリジンとして返す。シークのため Range を通す。
+        up_headers = {}
+        if "Range" in request.headers:
+            up_headers["Range"] = request.headers["Range"]
+
+        session = aiohttp.ClientSession()
+        try:
+            up = await session.get(url, headers=up_headers)
+        except Exception as e:
+            await session.close()
+            log.warning("media proxy failed: %s", e)
+            return web.Response(status=502)
+
+        if up.status >= 400:
+            up.release()
+            await session.close()
+            return web.Response(status=up.status)
+
+        passthrough = ("Content-Type", "Content-Length", "Content-Range",
+                       "Accept-Ranges")
+        resp = web.StreamResponse(
+            status=up.status,
+            headers={k: v for k, v in up.headers.items() if k in passthrough})
+        resp.headers.setdefault("Accept-Ranges", "bytes")
+        resp.headers["Cache-Control"] = "private, max-age=300"
+        try:
+            await resp.prepare(request)
+            async for chunk in up.content.iter_chunked(64 * 1024):
+                await resp.write(chunk)
+            await resp.write_eof()
+        except (ConnectionResetError, asyncio.CancelledError):
+            pass                      # 途中でシークされた/閉じられた
+        finally:
+            up.release()
+            await session.close()
+        return resp
 
     async def thumb(request):
         cid = int(request.match_info["id"])
@@ -352,6 +408,7 @@ def add_routes(app: web.Application, client) -> None:
     r.add_delete("/api/comments/{id}", require_user(delete_comment))
     r.add_post("/api/clips/{id}/reactions", require_user(react))
     r.add_post("/api/clips/{id}/favorite", require_user(favorite))
+    r.add_post("/api/log", require_user(client_log))
     r.add_get("/media/{id}", require_user(media))
     r.add_get("/thumb/{id}", require_user(thumb))
     if (STATIC / "assets").is_dir():
