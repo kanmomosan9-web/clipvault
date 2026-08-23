@@ -110,10 +110,50 @@ async def main():
         print("  B:", st["host_name"], "| is_host:", st["is_host"])
         assert st["is_host"]
 
-        print("\n=== 共有をやめる ===")
+        print("\n=== 共有をやめると参加者に伝わる ===")
         st = await post(B, "/host", {"take": False})
-        print("  host:", st["host_name"] or "(なし)")
+        print("  host:", st["host_name"] or "(なし)", "| view:", st["view"])
+        assert st["host_id"] is None and st["view"] == {}
+        st = await get(A)
+        print("  A から見ても host なし ->", st["host_id"] is None)
         assert st["host_id"] is None
+
+        print("\n=== 変化を待って即座に返る（ロングポーリング）===")
+        await post(A, "/host", {"take": True})
+        st = await post(A, "/push", {"view": {"query": "まえ"}})
+        tick = st["tick"]
+
+        async def waiter():
+            r = await cli.get(f"/api/session/{INST}?since={tick}", headers=B)
+            return await r.json()
+
+        task = asyncio.create_task(waiter())
+        await asyncio.sleep(0.2)
+        t0 = asyncio.get_event_loop().time()
+        await post(A, "/push", {"view": {"query": "あと"}})
+        got = await task
+        ms = int((asyncio.get_event_loop().time() - t0) * 1000)
+        print(f"  ホスト操作から {ms} ms で受信 -> query:", got["view"]["query"])
+        assert got["view"]["query"] == "あと" and ms < 500
+
+        print("\n=== お気に入りはホストのものを見る ===")
+        rr = await cli.post("/api/clips/1/favorite", headers=A, json={})
+        print("  A が clip 1 をお気に入りに:", (await rr.json())["favorited"])
+        rr = await cli.get("/api/clips?fav=1", headers=B)
+        print("  B が自分のお気に入り     ->", (await rr.json())["total"], "件")
+        rr = await cli.get(f"/api/clips?fav=1&as_host=1&instance={INST}", headers=B)
+        d = await rr.json()
+        print("  B がホスト視点で取得     ->", d["total"], "件",
+              [x["id"] for x in d["items"]])
+        assert d["total"] == 1 and d["items"][0]["id"] == 1
+
+        rr = await cli.get(f"/api/clips?fav=1&as_host=2&instance={INST}", headers=B)
+        print("  ホストでない人を指定     ->", (await rr.json())["total"],
+              "件 (0 が正しい・なりすまし防止)")
+        assert (await (await cli.get(
+            f"/api/clips?fav=1&as_host=2&instance={INST}", headers=B)).json())["total"] == 0
+
+        await post(A, "/host", {"take": False})
 
         print("\n=== 認証 ===")
         r = await cli.get(f"/api/session/{INST}")

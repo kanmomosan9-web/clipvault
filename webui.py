@@ -126,6 +126,15 @@ def add_routes(app: web.Application, client) -> None:
             if tid:
                 tag_ids.append(tid)
         me_id = request["user"]["user_id"]
+        # 同時視聴中はホストの画面を映すので、お気に入りもホストのものを見る。
+        # 参照するのは、そのセッションで実際にホストになっている人だけ。
+        fav_of = me_id
+        as_host = request.query.get("as_host")
+        inst = request.query.get("instance")
+        if as_host and inst:
+            owner = session.host_of(inst)
+            if owner and str(owner) == str(as_host):
+                fav_of = owner
         only_fav = request.query.get("fav") == "1"
         by = request.query.get("by", "")
         uploader_id = db.uploader_id_by_name(by) if by else None
@@ -134,11 +143,11 @@ def add_routes(app: web.Application, client) -> None:
 
         rows, total = db.query_clips(query=q, tag_ids=tag_ids,
                                      uploader_id=uploader_id,
-                                     favorite_of=me_id if only_fav else None,
+                                     favorite_of=fav_of if only_fav else None,
                                      sort=sort, offset=offset, limit=limit)
 
         rcount, ccount = db.reaction_counts(), db.comment_counts()
-        favs = db.favorite_ids(me_id)
+        favs = db.favorite_ids(fav_of)
         items = []
         for r in rows:
             tags = db.get_tags(r["id"])
@@ -311,9 +320,20 @@ def add_routes(app: web.Application, client) -> None:
         return str(request.match_info["inst"])[:64]
 
     async def session_get(request):
+        """状態を返す。since を付けると変化するまで待つ（ロングポーリング）。
+
+        毎秒問い合わせるより速く、通信も少ない。
+        """
         u = request["user"]
+        inst = _inst(request)
+        since = request.query.get("since")
+        if since is not None:
+            try:
+                await session.wait_change(inst, int(since), timeout=20.0)
+            except (TypeError, ValueError):
+                pass
         return web.json_response(
-            session.touch(_inst(request), u["user_id"], u["user_name"]))
+            session.touch(inst, u["user_id"], u["user_name"]))
 
     async def session_host(request):
         u = request["user"]
