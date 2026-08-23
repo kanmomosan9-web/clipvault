@@ -59,6 +59,36 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
 .tag em{margin-left:auto;font-family:var(--mono);font-size:11px;font-style:normal;opacity:.6}
 .stage{flex:1;overflow-y:auto;padding:22px 24px 60px}
 
+.syncbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:18px;padding:10px 14px;border:1px solid var(--gold-dim);
+  background:#141A12;font-size:12.5px;
+}
+.syncbar.live{border-color:var(--teal);background:#0E1A1B}
+.syncbar b{color:var(--gold);font-weight:500}
+.syncbar.live b{color:var(--teal)}
+.syncbar .who{color:var(--muted);font-family:var(--mono);font-size:11.5px}
+.syncbar button{
+  padding:4px 12px;border:1px solid var(--gold-dim);color:var(--gold);font-size:12px;
+}
+.syncbar button:hover{background:#1E1A12;border-color:var(--gold)}
+.syncbar .spacer{margin-left:auto}
+/* 追従中はホストの画面を映すだけにする。誤操作でずれないように */
+body.following aside,
+body.following .search,
+body.following #sort,
+body.following .stage .card,
+body.following #more,
+body.following .tagline,
+body.following .reacts,
+body.following .compose,
+body.following .tabs{pointer-events:none;opacity:.55}
+body.following .screen video::-webkit-media-controls{display:none}
+body.following #syncbar{pointer-events:auto;opacity:1}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--teal);
+  animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:20px}
 .card{--cut:12px;display:block;text-align:left;width:100%;cursor:pointer}
 .fav{
@@ -276,6 +306,7 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
   </aside>
 
   <div class="stage">
+    <div class="syncbar" id="syncbar" hidden></div>
     <div id="grid" class="grid"></div>
     <div id="empty" class="empty" hidden><b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。</div>
     <button id="more" class="more" hidden></button>
@@ -467,6 +498,7 @@ async function load(){
     offset+=d.items.length;
     done=!d.has_more;
     $("n").textContent=items.length;$("ntotal").textContent=total;
+    pushNow();
     $("empty").hidden=items.length>0;
     $("more").hidden=items.length===0;
     if(done){
@@ -606,6 +638,7 @@ function placePlayer(){
 }
 
 async function openClip(id){
+  if(syncRole==="follow"&&!applying)return;   // 追従中は操作させない
   cur=await API.get("/api/clips/"+id);
   openId=id;
   cardEls.forEach((el,k)=>el.classList.toggle("open",k===id));
@@ -627,6 +660,7 @@ async function openClip(id){
   console.log("[clipvault] media src =",vid.src);
   vid.playsInline=true;vid.preload="metadata";
   vid.ontimeupdate=sync;
+  vid.onplay=pushNow;vid.onpause=pushNow;vid.onseeked=pushNow;
   vid.onloadedmetadata=()=>{
     if(window.CV_ACTIVITY&&mediaMode===null){
       mediaMode="cdn";console.log("[clipvault] media = cdn プロキシ経由");
@@ -645,11 +679,14 @@ async function openClip(id){
   };
   box.appendChild(vid);
   drawTags();drawReacts();drawFav();drawLines();drawComments();drawMarks();tab("t");
+  if(syncRole==="follow")vid.controls=false;
+  pushNow();                       // ホストなら開いたクリップを配る
   placePlayer();
   $("player").scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 function closeClip(){
   if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
+  pushNow();
   const card=cardEls.get(openId);
   refreshCard();                     // 編集内容をカードに反映
   const pl=$("player");
@@ -789,6 +826,7 @@ function sync(){
 // 読み込みに失敗して止まったときの復帰口も兼ねる。
 // 絞り込み・検索・開いているクリップをすべて解除して読み直す。
 async function goHome(){
+  if(syncRole!=="off")await syncStop();
   if(vid){try{vid.pause()}catch(e){}}
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
@@ -805,11 +843,182 @@ async function goHome(){
   try{await facets()}catch(e){console.warn("[clipvault] facets 失敗",e)}
   reset();
 }
+// ---------------------------------------------------------------- 同時視聴
+// ホストの画面をそのまま参加者に映す（Watch Together と同じ考え方）。
+// 再生位置だけでなく、検索語・絞り込み・並び順・開いているクリップ・
+// スクロール位置まで含めて共有し、参加者は操作しない。
+const INSTANCE=new URLSearchParams(location.search).get("instance_id")||"";
+let syncRole="off";     // off / host / follow
+let syncState=null,syncTimer=null,watchTimer=null;
+let lastSent="",applying=false,lastRev=-1;
+
+const syncURL=p=>`/api/session/${encodeURIComponent(INSTANCE)}${p||""}`;
+const stage=()=>document.querySelector(".stage");
+
+function myView(){
+  return {
+    query,sort:$("sort").value,onlyFav,
+    game:filters.game,tag:filters.tag,by:filters.by,
+    loaded:items.length,
+    openId,
+    position:vid?Math.round(vid.currentTime*10)/10:0,
+    playing:!!(vid&&!vid.paused&&!vid.ended),
+    scroll:Math.round(stage().scrollTop),
+  };
+}
+
+// 再生位置とスクロールは常に動くので、比較からは外して別扱いにする
+function viewKey(v){
+  return JSON.stringify([v.query,v.sort,v.onlyFav,v.game,v.tag,v.by,
+                         v.loaded,v.openId]);
+}
+
+async function syncStart(asHost){
+  if(!INSTANCE)return;
+  try{
+    if(asHost){
+      const st=await API.send("POST",syncURL("/host"),{take:true});
+      if(!st.is_host){alert(`${st.host_name} さんが共有中です`);return}
+      syncRole="host";lastSent="";
+    }else{
+      syncRole="follow";lastRev=-1;
+    }
+  }catch(e){console.warn("[clipvault] sync 開始失敗",e);return}
+  document.body.classList.toggle("following",syncRole==="follow");
+  drawSync();
+  clearInterval(syncTimer);
+  syncTimer=setInterval(syncTick,1200);
+  syncTick();
+}
+
+async function syncStop(){
+  if(syncRole==="host"){
+    try{await API.send("POST",syncURL("/host"),{take:false})}catch(e){}
+  }
+  syncRole="off";clearInterval(syncTimer);syncTimer=null;
+  document.body.classList.remove("following");
+  if(vid)vid.controls=true;
+  drawSync();
+}
+
+async function syncTick(){
+  try{
+    if(syncRole==="host"){
+      syncState=await API.send("POST",syncURL("/push"),{view:myView()});
+      if(!syncState.is_host)syncRole="follow";   // 奪われた
+    }else{
+      syncState=await API.get(syncURL());
+      if(syncRole==="follow")await applyView(syncState);
+    }
+  }catch(e){console.warn("[clipvault] sync 通信失敗",e)}
+  drawSync();
+}
+
+// ホストが操作したら即座に配る（一覧の変化・再生操作など）
+let pushSoon=null;
+function pushNow(){
+  if(syncRole!=="host"||applying)return;
+  clearTimeout(pushSoon);
+  pushSoon=setTimeout(()=>{
+    const k=viewKey(myView());
+    if(k!==lastSent){lastSent=k;syncTick()}
+  },200);
+}
+
+async function applyView(st){
+  const v=st.view;
+  if(!st.host_id||!v)return;
+  applying=true;
+  try{
+    // 1) 一覧の条件が変わっていたら作り直す
+    if(st.rev!==lastRev){
+      lastRev=st.rev;
+      const changed=query!==v.query||$("sort").value!==(v.sort||"new")
+        ||onlyFav!==!!v.onlyFav||filters.game!==(v.game??null)
+        ||filters.tag!==(v.tag??null)||filters.by!==(v.by??null);
+      if(changed){
+        query=v.query||"";$("q").value=query;
+        $("sort").value=v.sort||"new";
+        onlyFav=!!v.onlyFav;
+        filters={game:v.game??null,tag:v.tag??null,by:v.by??null};
+        await facets().catch(()=>{});
+        await reset();
+      }
+      // ホストが読み込んだ件数まで追いつく
+      let guard=0;
+      while(items.length<(v.loaded||0)&&!done&&guard++<10)await load();
+
+      // 2) 開いているクリップを合わせる
+      if(v.openId&&openId!==v.openId)await openClip(v.openId);
+      else if(!v.openId&&openId)closeClip();
+    }
+
+    // 3) 再生位置とスクロールは毎回追従する
+    if(vid&&v.openId===openId){
+      vid.controls=false;
+      if(Math.abs(vid.currentTime-(v.position||0))>2)vid.currentTime=v.position||0;
+      if(v.playing&&vid.paused)await vid.play().catch(()=>{});
+      if(!v.playing&&!vid.paused)vid.pause();
+    }
+    if(typeof v.scroll==="number"&&Math.abs(stage().scrollTop-v.scroll)>60){
+      stage().scrollTop=v.scroll;
+    }
+  }finally{applying=false}
+}
+
+function drawSync(){
+  const bar=$("syncbar");
+  if(!INSTANCE){bar.hidden=true;return}
+  bar.hidden=false;
+  const n=syncState?syncState.watchers.length:0;
+  const host=syncState&&syncState.host_name;
+
+  if(syncRole==="host"){
+    bar.className="syncbar live";
+    bar.innerHTML=`<span class="dot"></span><b>あなたの画面を共有中</b>
+      <span class="who">${n} 人が参加</span>
+      <span class="spacer"></span><button id="sync-off">共有をやめる</button>`;
+    $("sync-off").onclick=syncStop;
+  }else if(syncRole==="follow"){
+    bar.className="syncbar live";
+    bar.innerHTML=`<span class="dot"></span><b>${esc(host||"?")} の画面を見ています</b>
+      <span class="who">操作はホストが行います・${n} 人が参加</span>
+      <span class="spacer"></span><button id="sync-off">抜ける</button>`;
+    $("sync-off").onclick=syncStop;
+  }else{
+    bar.className="syncbar";
+    bar.innerHTML=host
+      ? `<b>${esc(host)} が画面を共有しています</b>
+         <span class="who">${n} 人が参加</span>
+         <span class="spacer"></span><button id="sync-join">一緒に見る</button>`
+      : `<b>👥 みんなで見る</b>
+         <span class="who">この通話の参加者に自分の画面を共有します</span>
+         <span class="spacer"></span><button id="sync-join">共有を始める</button>`;
+    const b=$("sync-join");
+    if(b)b.onclick=()=>syncStart(!host);
+  }
+}
+
+if(INSTANCE){
+  drawSync();
+  // 誰かが共有を始めたら待機中でも気づけるように
+  watchTimer=setInterval(async()=>{
+    if(syncRole!=="off")return;
+    try{syncState=await API.get(syncURL());drawSync()}catch(e){}
+  },5000);
+  // ホストのスクロールも共有する
+  stage().addEventListener("scroll",()=>{
+    if(syncRole!=="host")return;
+    clearTimeout(pushSoon);
+    pushSoon=setTimeout(syncTick,300);
+  },{passive:true});
+}
+
 $("home").onclick=goHome;
 
 // 状態の外部公開。テストと不具合報告のためだけに使う。
 window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
-  items:items.length,mediaMode});
+  items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState});
 
 $("more").onclick=()=>{if(!done)load()};
 $("back").onclick=closeClip;

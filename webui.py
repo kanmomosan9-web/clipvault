@@ -8,6 +8,7 @@ from aiohttp import web
 import config
 import db
 import dc
+import session
 
 log = logging.getLogger("web")
 
@@ -305,6 +306,29 @@ def add_routes(app: web.Application, client) -> None:
         return web.json_response({"favorited": added,
                                   "count": db.favorite_count(me_id)})
 
+    # ------------------------------------------------------------ 同時視聴
+    def _inst(request) -> str:
+        return str(request.match_info["inst"])[:64]
+
+    async def session_get(request):
+        u = request["user"]
+        return web.json_response(
+            session.touch(_inst(request), u["user_id"], u["user_name"]))
+
+    async def session_host(request):
+        u = request["user"]
+        body = await request.json()
+        state = session.take_host(_inst(request), u["user_id"], u["user_name"],
+                                  bool(body.get("take", True)))
+        log.info("session %s: host=%s", _inst(request), state["host_name"] or "-")
+        return web.json_response(state)
+
+    async def session_push(request):
+        u = request["user"]
+        body = await request.json()
+        return web.json_response(session.push(
+            _inst(request), u["user_id"], u["user_name"], body.get("view")))
+
     # ------------------------------------------------------------ media
     async def media(request):
         cid = int(request.match_info["id"])
@@ -415,6 +439,9 @@ def add_routes(app: web.Application, client) -> None:
     r.add_post("/api/clips/{id}/reactions", require_user(react))
     r.add_post("/api/clips/{id}/favorite", require_user(favorite))
     r.add_post("/api/log", require_user(client_log))
+    r.add_get("/api/session/{inst}", require_user(session_get))
+    r.add_post("/api/session/{inst}/host", require_user(session_host))
+    r.add_post("/api/session/{inst}/push", require_user(session_push))
     r.add_get("/media/{id}", require_user(media))
     r.add_get("/thumb/{id}", require_user(thumb))
     if (STATIC / "assets").is_dir():
