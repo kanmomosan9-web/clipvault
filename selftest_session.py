@@ -136,6 +136,19 @@ async def main():
         print(f"  ホスト操作から {ms} ms で受信 -> query:", got["view"]["query"])
         assert got["view"]["query"] == "あと" and ms < 500
 
+        print("\n=== 位置は経過時間つきで返る ===")
+        await post(A, "/push", {"view": {"openId": 5, "position": 12.5,
+                                         "playing": True}})
+        st = await get(B)
+        print(f"  直後       -> position={st['view']['position']} "
+              f"elapsed={st['elapsed']}")
+        await asyncio.sleep(0.5)
+        st = await get(B)
+        fixed = round(st["view"]["position"] + st["elapsed"], 2)
+        print(f"  0.5秒後    -> elapsed={st['elapsed']} / 補正後={fixed}")
+        assert st["elapsed"] >= 0.4, "経過時間が返っていない"
+        assert abs(fixed - 13.0) < 0.2, "補正後の位置がおかしい"
+
         print("\n=== お気に入りはホストのものを見る ===")
         rr = await cli.post("/api/clips/1/favorite", headers=A, json={})
         print("  A が clip 1 をお気に入りに:", (await rr.json())["favorited"])

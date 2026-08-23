@@ -52,7 +52,8 @@ def clean_view(raw) -> dict:
 
 def _new(instance: str) -> dict:
     return {"instance": instance, "host_id": None, "host_name": "",
-            "view": {}, "rev": 0, "tick": 0, "updated_at": 0.0, "watchers": {}}
+            "view": {}, "rev": 0, "tick": 0, "view_at": 0.0,
+            "updated_at": 0.0, "watchers": {}}
 
 
 def _wake(instance: str) -> None:
@@ -102,6 +103,9 @@ def _shape(s: dict, me: int) -> dict:
         "view": s["view"],
         "rev": s["rev"],
         "tick": s["tick"],
+        # ホストが位置を送ってから何秒経ったか。参加者はこれを足して補正する。
+        "elapsed": round(max(0.0, time.time() - s["view_at"]), 3)
+                   if s.get("view_at") else 0.0,
         "age": round(time.time() - s["updated_at"], 2) if s["updated_at"] else None,
         "watchers": [w["name"] for w in s["watchers"].values()],
     }
@@ -155,6 +159,7 @@ def push(instance: str, user_id: int, user_name: str, view) -> dict:
     s["host_id"] = user_id
     s["host_name"] = user_name
     s["view"] = view
+    s["view_at"] = now          # この位置がいつの時点のものか
     s["updated_at"] = now
     s["watchers"][user_id] = {"name": user_name, "seen": now}
     s["tick"] += 1

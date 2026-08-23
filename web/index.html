@@ -832,7 +832,9 @@ function sync(){
 // 読み込みに失敗して止まったときの復帰口も兼ねる。
 // 絞り込み・検索・開いているクリップをすべて解除して読み直す。
 async function goHome(){
-  if(syncRole!=="off")await syncStop();
+  // 共有中でも共有は維持する。ホストは一覧に戻る操作として扱い、
+  // 参加者にもその状態が伝わる。
+  if(syncRole==="follow")return;      // 追従中は操作させない
   if(vid){try{vid.pause()}catch(e){}}
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
@@ -847,7 +849,8 @@ async function goHome(){
   $("empty").innerHTML=`<b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。`;
   document.querySelector(".stage").scrollTop=0;
   try{await facets()}catch(e){console.warn("[clipvault] facets 失敗",e)}
-  reset();
+  await reset();
+  pushNow();                          // ホストなら一覧に戻ったことを配る
 }
 // ---------------------------------------------------------------- 同時視聴
 // ホストの画面をそのまま参加者に映す（Watch Together と同じ考え方）。
@@ -894,10 +897,12 @@ async function syncStart(asHost){
   drawSync();
   clearInterval(syncTimer);
   if(syncRole==="host"){
-    // ホストは定期的に生存を知らせる（沈黙すると解散するため）
-    syncTimer=setInterval(syncTick,3000);
+    // 生存確認を兼ねて位置を配る。参加者は経過時間で補正するので
+    // 間隔が空いても大きくはずれない。
+    syncTimer=setInterval(syncTick,2000);
     syncTick();
   }else{
+    startDrift();
     syncTick().then(syncWatch);
   }
 }
@@ -907,8 +912,9 @@ async function syncStop(){
     try{await API.send("POST",syncURL("/host"),{take:false})}catch(e){}
   }
   syncRole="off";clearInterval(syncTimer);syncTimer=null;
+  clearInterval(driftTimer);driftTimer=null;
   document.body.classList.remove("following");
-  if(vid)vid.controls=true;
+  if(vid){vid.controls=true;vid.playbackRate=1}
   drawSync();
 }
 
@@ -933,6 +939,24 @@ async function syncTick(){
 }
 
 // 参加者が待ち続ける。変化した瞬間に返るので追従が速い。
+// 位置合わせだけは毎秒行う。ロングポーリングは変化時しか返らないので、
+// 再生中はこちらで少しずつ寄せる。
+let driftTimer=null;
+function startDrift(){
+  clearInterval(driftTimer);
+  driftTimer=setInterval(async()=>{
+    if(syncRole!=="follow"||!syncState||!vid)return;
+    try{
+      const st=await API.get(syncURL());
+      syncState={...syncState,view:st.view,elapsed:st.elapsed,
+                 host_id:st.host_id,host_name:st.host_name,
+                 watchers:st.watchers};
+      if(!st.host_id){await syncStop();note("共有が終了しました");return}
+      await applyView(syncState);
+    }catch(e){}
+  },1000);
+}
+
 async function syncWatch(){
   while(syncRole==="follow"){
     try{
@@ -996,10 +1020,22 @@ async function applyView(st){
       else if(!v.openId&&openId)closeClip();
     }
 
-    // 3) 再生位置とスクロールは毎回追従する
+    // 3) 再生位置。届いた値は「送られた時点」のものなので、
+    //    そこからの経過時間を足さないと必ず遅れる。
     if(vid&&v.openId===openId){
       vid.controls=false;
-      if(Math.abs(vid.currentTime-(v.position||0))>2)vid.currentTime=v.position||0;
+      const target=(v.position||0)+(v.playing?(st.elapsed||0):0);
+      const drift=vid.currentTime-target;
+
+      if(Math.abs(drift)>1.2){
+        vid.currentTime=target;              // 大きくずれたら飛ばす
+        vid.playbackRate=1;
+      }else if(v.playing&&Math.abs(drift)>0.12){
+        // 小さなずれは再生速度で吸収する。飛ばすと音が途切れて不自然なため。
+        vid.playbackRate=drift>0?0.96:1.04;
+      }else{
+        vid.playbackRate=1;
+      }
       if(v.playing&&vid.paused)await vid.play().catch(()=>{});
       if(!v.playing&&!vid.paused)vid.pause();
     }

@@ -33,6 +33,7 @@ MARKERS = {
     "web/assets/fonts.css": [("同梱フォント", "font-face")],
     "selftest_commands.py": [("コマンド欠落検査", "EXPECTED")],
     "selftest_dom.js": [("画面の描画検査", "DOM OK")],
+    "selftest_drift.js": [("再生位置の補正検査", "DRIFT OK")],
     "selftest_media.py": [("動画中継の検査", "Range")],
     "diagnose_media.py": [("動画経路の診断", "URL Mappings")],
     "inspect_codecs.py": [("コーデック検査", "kUnsupportedConfig")],
@@ -264,7 +265,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-22f (instant sync + fixed bar)")
+        print("  INFO BUILD 2026-08-22g (drift compensation)")
     print()
 
 
