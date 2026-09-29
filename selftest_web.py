@@ -28,8 +28,12 @@ class FakeMessage:
         self.attachments = [FakeAttachment(aid)]
 
 
+FETCHES = []
+
+
 class FakeChannel:
     async def fetch_message(self, mid):
+        FETCHES.append(mid)
         return FakeMessage(db.clip_by_message(mid)["attachment_id"])
 
 
@@ -307,6 +311,22 @@ async def main():
         r = await cli.post("/api/log", json={"tag": "x"})
         print("認証なし               ->", r.status, "(401 が正しい)")
         assert r.status == 401
+
+        import dc
+        dc._cache.clear()
+        FETCHES.clear()
+        await get("/api/clips/2")
+        r = await get("/media/2", allow_redirects=False)
+        await get("/media/2", allow_redirects=False)
+        print("URL の使い回し          -> Discord への問い合わせ", len(FETCHES), "回 (1 が正しい)")
+        assert len(FETCHES) == 1 and r.status == 302
+        await get("/media/2?fresh=1", allow_redirects=False)
+        assert len(FETCHES) == 2, "fresh=1 で取り直していない"
+        FETCHES.clear()
+        dc._cache.clear()
+        await asyncio.gather(get("/api/clips/3"), get("/media/3", allow_redirects=False))
+        print("同時アクセス            -> Discord への問い合わせ", len(FETCHES), "回 (1 が正しい)")
+        assert len(FETCHES) == 1
 
         r = await get("/media/1", allow_redirects=False)
         print("GET /media/1          ->", r.status, r.headers.get("Location", "")[:52])

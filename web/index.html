@@ -830,6 +830,9 @@ function cdnSrc(c){
   try{const u=new URL(c.cdn);return window.__CDN_PREFIX__+u.pathname+u.search}
   catch(e){return null}
 }
+function freshSrc(c){
+  return SIGN(P()+c.media+"?fresh=1");
+}
 function streamSrc(c){
   return SIGN(P()+c.media+"?stream=1");
 }
@@ -904,8 +907,11 @@ function showMediaError(d){
   const dl=$("err-dl");
   dl.href=d.src;dl.setAttribute("download",(cur.title||"clip")+".mp4");
 }
+// ブラウザ版は詳細に入っている CDN の URL を直接使う。
+// /media を経由すると VM がそのたびに Discord へ問い合わせてから転送するため、
+// 1 本ごとに待ち時間が入る。
 function mediaSrc(c){
-  if(!window.CV_ACTIVITY)return SIGN(P()+c.media);
+  if(!window.CV_ACTIVITY)return c.cdn||SIGN(P()+c.media);
   if(mediaMode==="stream")return streamSrc(c);
   return cdnSrc(c)||streamSrc(c);
 }
@@ -970,6 +976,10 @@ async function openClip(id){
       mediaMode="stream";
       console.warn("[clipvault] CDN プロキシに失敗。VM 中継へ切り替えます");
       vid.src=streamSrc(cur);vid.load();vid.play().catch(()=>{});
+      return;
+    }
+    if(!window.CV_ACTIVITY&&cur&&cur.cdn&&src===cur.cdn){
+      vid.src=freshSrc(cur);vid.load();vid.play().catch(()=>{});   // 期限切れなど
       return;
     }
     reportMedia(vid,src,mediaMode||"direct");   // 両方だめなら診断を送る
@@ -1552,6 +1562,10 @@ function shortsPlayer(){
       mediaMode="stream";v.src=streamSrc(d);v.load();v.play().catch(()=>{});
       return;
     }
+    if(!window.CV_ACTIVITY&&d.cdn&&v.getAttribute("src")===d.cdn){
+      v.src=freshSrc(d);v.load();v.play().catch(()=>{});
+      return;
+    }
     slideError(el,d,v);
   };
   v.onloadedmetadata=()=>{if(window.CV_ACTIVITY&&mediaMode===null)mediaMode="cdn"};
@@ -1637,6 +1651,9 @@ async function activate(i){
       if(SH.idx===i&&SH.on)prefetch(nd);
     }).catch(()=>{});
   }
+  // 2 本先までは詳細（再生URL）だけ先に取っておく
+  const after=all[i+2];
+  if(after)detailOf(Number(after.dataset.id)).catch(()=>{});
   if(!SH.done&&i>=SH.items.length-3)shortsLoad();
 }
 

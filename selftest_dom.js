@@ -388,6 +388,26 @@ async function boot(activity, url, opts) {
     wi.close();
   }
 
+  console.log("\n=== ブラウザ版は CDN を直接再生 ===");
+  DETAIL.cdn = "https://cdn.discordapp.com/attachments/1/2/c.mp4?ex=A&hm=C";
+  const wcd = await boot(false);
+  wcd.document.querySelectorAll(".card")[0].onclick();
+  await sleep(80);
+  let vv = wcd.document.getElementById("screen").querySelector("video");
+  check(vv.getAttribute("src") === DETAIL.cdn, "一覧のプレーヤーは CDN の URL を直接使う");
+  vv.dispatchEvent(new wcd.Event("error"));
+  await sleep(30);
+  check(vv.getAttribute("src") === "/media/1?fresh=1", "失敗したら取り直し経路へ");
+  wcd.document.getElementById("shortsbtn").onclick();
+  await sleep(120);
+  vv = wcd.document.querySelector("#s-feed video");
+  check(vv && vv.getAttribute("src") === DETAIL.cdn, "ショートも CDN の URL を直接使う");
+  vv.dispatchEvent(new wcd.Event("error"));
+  await sleep(30);
+  check(vv.getAttribute("src").endsWith("?fresh=1"), "ショートも失敗したら取り直し");
+  wcd.close();
+  DETAIL.cdn = "";
+
   console.log("\n=== スマホの配置 ===");
   calls.length = 0;
   const wm = await boot(false, "https://clipvault.example.ts.net/", { width: 390, touch: true });

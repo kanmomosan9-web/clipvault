@@ -519,6 +519,8 @@ def add_routes(app: web.Application, client) -> None:
         clip = db.get_clip(cid)
         if clip is None:
             return web.Response(status=404)
+        if request.query.get("fresh") == "1":
+            dc.forget(clip)            # 覚えていたURLで再生できなかったとき
         url = await dc.fresh_attachment_url(client, clip)
         if not url:
             return web.Response(status=410, text="attachment unavailable")
