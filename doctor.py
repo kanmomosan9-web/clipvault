@@ -27,7 +27,8 @@ MARKERS = {
     "api.py": [("ジョブAPI", "def build_app")],
     "config.py": [("リスト表示の件数", "LIST_PAGE_SIZE")],
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
-    "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code")],
+    "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code"),
+                 ("ブラウザ版ログイン", "def auth_callback")],
     "sync.py": [("コメント同期", "def push_comment"), ("リアクション同期", "def push_reaction")],
     "session.py": [("同時視聴", "def take_host"), ("ショートの同時視聴", '"shorts"')],
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
@@ -39,7 +40,9 @@ MARKERS = {
     "selftest_media.py": [("動画中継の検査", "Range")],
     "diagnose_media.py": [("動画経路の診断", "URL Mappings")],
     "inspect_codecs.py": [("コーデック検査", "kUnsupportedConfig")],
-    "web/index.html": [("ブラウザ版UI", "CLIPVAULT"), ("ショート", "openShorts")],
+    "web/index.html": [("ブラウザ版UI", "CLIPVAULT"), ("ショート", "openShorts"),
+                       ("スマホの下のバー", 'id="bnav"'), ("アプリ化", "manifest.webmanifest")],
+    "web/sw.js": [("アプリ化（Service Worker）", "skipWaiting")],
 }
 
 OK, NG, WARN = "  OK  ", "  NG  ", " WARN "
@@ -168,7 +171,15 @@ def main():
             line(NG, "PUBLIC_URL 未設定", "/library がリンクを発行できません")
         else:
             line(OK, "公開URL", cfg2.PUBLIC_URL)
-            line(OK, "トークン有効期限", f"{cfg2.WEB_TOKEN_DAYS} 日")
+            line(OK, "トークン有効期限", f"{cfg2.WEB_TOKEN_DAYS} 日（使うたびに {cfg2.WEB_LOGIN_DAYS} 日へ延長）")
+            if cfg2.CLIENT_ID and cfg2.CLIENT_SECRET:
+                line(OK, "ブラウザ版ログイン",
+                     f"Developer Portal → OAuth2 → Redirects に {cfg2.PUBLIC_URL}/auth/callback を登録")
+            else:
+                line(WARN, "ブラウザ版ログイン", "CLIENT_ID / CLIENT_SECRET 未設定のため使えません")
+            man = HERE / "web" / "manifest.webmanifest"
+            line(OK if man.exists() else NG, "ホーム画面に追加（manifest）",
+                 "あり" if man.exists() else "見つからない")
         if cfg2.ACTIVITY_ENABLED:
             ok_id = bool(cfg2.CLIENT_ID) and cfg2.CLIENT_ID.isdigit()
             line(OK if ok_id else NG, "CLIENT_ID",
@@ -267,7 +278,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-09-29e (bottom nav)")
+        print("  INFO BUILD 2026-09-29f (web login + app)")
     print()
 
 

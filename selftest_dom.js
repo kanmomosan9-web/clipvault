@@ -37,6 +37,7 @@ const FACETS = {
 };
 
 const calls = [];
+let UNAUTH = false;
 
 function fakeFetch(url, init) {
   const u = String(url);
@@ -51,6 +52,9 @@ function fakeFetch(url, init) {
       ok: true, status: 206,
       headers: { get: (k) => (k === "Content-Type" ? "video/mp4" : null) },
     });
+  }
+  if (u.includes("/api/me") && UNAUTH) {
+    return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
   }
   if (u.includes("/api/me")) return json({ id: "4242", name: "つるかん",
     browser_url: "https://clipvault.example.ts.net/?t=TOK" });
@@ -96,6 +100,10 @@ async function boot(activity, url, opts) {
                                   win.matchMedia = (q) => {
                                     const mx = q.match(/max-width:\s*(\d+)px/);
                                     const coarse = q.includes("pointer:coarse");
+                                    if (q.includes("display-mode")) {
+                                      return { matches: !!opts.standalone, media: q,
+                                               addEventListener() {}, addListener() {} };
+                                    }
                                     const ok = (!mx || opts.width <= Number(mx[1]))
                                       && (!coarse || !!opts.touch);
                                     return { matches: ok, media: q,
@@ -399,6 +407,42 @@ async function boot(activity, url, opts) {
   check(!wpc.__state().compact && wpc.document.querySelector("header").contains(
     wpc.document.getElementById("q")), "PC の配置は変わらない");
   wpc.close();
+
+  console.log("\n=== ブラウザ版のログインとアプリ化 ===");
+  const wb = await boot(false, "https://cv.example.ts.net/?t=SECRET&mode=shorts&game=LoL",
+                        { width: 390, touch: true });
+  await sleep(100);
+  check(!wb.location.search.includes("t=SECRET"), "アドレスバーからトークンを消す");
+  check(wb.location.search.includes("mode=shorts"), "他の指定は残す");
+  check(!wb.document.getElementById("install").hidden, "『ホーム画面に追加』が出る");
+  check(!wb.document.getElementById("logout").hidden, "ログアウトが出る");
+  wb.document.getElementById("install").onclick();
+  check(!wb.document.getElementById("howto").hidden, "追加のしかたを案内する");
+  check(!!wb.document.querySelector('link[rel="manifest"]'), "manifest を読み込む");
+  wb.close();
+
+  const wsa = await boot(false, "https://cv.example.ts.net/?source=app",
+                         { width: 390, touch: true, standalone: true });
+  check(wsa.document.getElementById("install").hidden, "アプリとして開いたら追加ボタンは出さない");
+  wsa.close();
+
+  const wact = await boot(true, "https://123.discordsays.com/?instance_id=i&platform=mobile",
+                          { width: 390, touch: true });
+  check(wact.document.getElementById("install").hidden, "Activity では追加ボタンを出さない");
+  check(wact.document.getElementById("logout").hidden, "Activity ではログアウトを出さない");
+  wact.close();
+
+  UNAUTH = true;
+  const wl = await boot(false, "https://cv.example.ts.net/?mode=shorts&t=OLD");
+  await sleep(40);
+  const a = wl.document.querySelector("a.login-btn");
+  check(!!a, "期限切れなら『Discord でログイン』");
+  const href = a ? a.getAttribute("href") : "";
+  console.log("     href =", href);
+  check(href.startsWith("/login?next=") && href.includes("mode%3Dshorts")
+        && !href.includes("OLD"), "戻り先を渡し、古いトークンは渡さない");
+  wl.close();
+  UNAUTH = false;
 
   console.log("\n=== ショートの同時視聴（追従側） ===");
   await wu.applyView({ host_id: "9", host_name: "たいち", rev: 50,

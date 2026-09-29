@@ -2,8 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ClipVault</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0A1015">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ClipVault">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="stylesheet" href="assets/fonts.css">
 <style>
 :root{
@@ -417,6 +425,23 @@ body.dc-mobile .s-top .spacer{display:none}
   .s-side{bottom:calc(34px + env(safe-area-inset-bottom,0px))}
 }
 
+/* ---------------------------------------------------------------- アプリとして開いたとき */
+.mextra{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.mextra button{padding:8px 14px;border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.mextra button.install{border-color:var(--gold-dim);color:var(--gold)}
+.mextra button[hidden]{display:none}
+.howto{width:100%;padding:10px 12px;background:#10171E;border-left:2px solid var(--gold-dim);
+  font-size:12.5px;line-height:1.75;color:#C9D3DC}
+.howto[hidden]{display:none}
+.howto b{color:var(--gold);font-weight:500}
+@media(display-mode:standalone){
+  header{padding-top:env(safe-area-inset-top,0px);height:calc(50px + env(safe-area-inset-top,0px))}
+  .s-top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
+  .shorts .s-hint{top:calc(64px + env(safe-area-inset-top,0px))}
+}
+.login-btn{display:inline-block;margin-top:18px;padding:11px 22px;background:#5865F2;color:#fff;
+  border-radius:4px;font-size:14px;text-decoration:none}
+
 @media(max-width:900px){aside{display:none}.pwrap{grid-template-columns:1fr}.pane{max-height:340px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -439,7 +464,13 @@ body.dc-mobile .s-top .spacer{display:none}
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
 </header>
 <div class="mback" id="mback" hidden></div>
-<div class="mpanel" id="mpanel" hidden><div class="mp-body" id="mpbody"></div></div>
+<div class="mpanel" id="mpanel" hidden><div class="mp-body" id="mpbody"></div>
+  <div class="mextra" id="mextra">
+    <button class="install" id="install" hidden>📲 ホーム画面に追加</button>
+    <button id="logout" hidden>ログアウト</button>
+    <div class="howto" id="howto" hidden></div>
+  </div>
+</div>
 
 <div class="syncbar" id="syncbar" hidden></div>
 
@@ -586,14 +617,63 @@ async function boot(){
   try{ME=await API.get("/api/me")}catch(e){return fail()}
   $("who").textContent=ME.name;$("avme").textContent=ME.name[0];
   const direct=shortsFromURL();
+  if(!window.CV_ACTIVITY)setupApp();
   await facets();await reset();
   if(direct)await openShorts();
 }
+
+// ---------------------------------------------------------------- ブラウザ版・アプリ化
+let installEvt=null;
+const STANDALONE=()=>!!((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)
+  ||navigator.standalone);
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;drawInstall()});
+window.addEventListener("appinstalled",()=>{installEvt=null;drawInstall()});
+
+function setupApp(){
+  // アドレスバーに個人用トークンを残さない（ログインはクッキーで続く）
+  const u=new URL(location.href);
+  if(u.searchParams.has("t")){
+    u.searchParams.delete("t");
+    try{history.replaceState(null,"",u.pathname+(u.search||"")+u.hash)}catch(e){}
+  }
+  if("serviceWorker" in navigator&&location.protocol==="https:"){
+    navigator.serviceWorker.register("/sw.js").catch(e=>console.warn("[clipvault] sw",e));
+  }
+  $("logout").hidden=false;
+  drawInstall();
+}
+function drawInstall(){
+  $("install").hidden=!!window.CV_ACTIVITY||STANDALONE();
+}
+$("install").onclick=async()=>{
+  if(installEvt){
+    installEvt.prompt();
+    try{await installEvt.userChoice}catch(e){}
+    installEvt=null;drawInstall();return;
+  }
+  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)
+    ||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+  const h=$("howto");
+  h.innerHTML=ios
+    ?`<b>Safari</b> で開いて、下の <b>共有ボタン（□に↑）</b> →<b>「ホーム画面に追加」</b>を選んでください。<br>
+       Discord や LINE の中のブラウザでは追加できません。右下の「Safari で開く」を使ってください。`
+    :`ブラウザのメニュー（<b>⋮</b>）→<b>「アプリをインストール」</b>または<b>「ホーム画面に追加」</b>を選んでください。<br>
+       Discord などアプリの中のブラウザで開いている場合は、先に Chrome で開き直してください。`;
+  h.hidden=!h.hidden;
+};
+$("logout").onclick=()=>{location.href=P()+"/logout"};
 function fail(){
+  // ブラウザ版は Discord でログインし直せる。戻り先は今のページ（トークンは除く）。
+  const u=new URL(location.href);u.searchParams.delete("t");
+  const next=u.pathname+(u.search||"");
+  const login=!window.CV_ACTIVITY
+    ?`<a class="login-btn" href="${P()}/login?next=${encodeURIComponent(next)}">Discord でログイン</a>
+      <p style="color:#78899A;font-size:12px;margin-top:16px">Discord で <code>/library</code> を実行して出るリンクからも入れます。</p>`
+    :`<p style="color:#78899A;font-size:13px">Activity を閉じて開き直してください。</p>`;
   document.body.innerHTML=`<div style="margin:auto;padding:60px 24px;max-width:440px;text-align:center">
     <div style="font-family:Cinzel,serif;color:#C8AA6E;letter-spacing:.14em;margin-bottom:14px">CLIPVAULT</div>
-    <p style="color:#F0E6D2;margin-bottom:8px">リンクの有効期限が切れています</p>
-    <p style="color:#78899A;font-size:13px">Discord で <code>/library</code> を実行して、新しいリンクを取得してください。</p>
+    <p style="color:#F0E6D2;margin-bottom:8px">${window.CV_ACTIVITY?"接続が切れました":"ログインしてください"}</p>
+    ${login}
   </div>`;
 }
 

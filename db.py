@@ -725,7 +725,13 @@ def issue_token(token: str, user_id: int, user_name: str, guild_id: int,
                 days: int = 30) -> None:
     now = datetime.now(timezone.utc)
     c = connect()
-    c.execute("DELETE FROM web_tokens WHERE user_id = ?", (user_id,))
+    # 端末ごとにログインを持てるように、他の端末のトークンは消さない。
+    # 期限切れと、古すぎる分（1人 8 個を超えた分）だけ掃除する。
+    c.execute("DELETE FROM web_tokens WHERE expires_at < ?", (now.isoformat(),))
+    c.execute(
+        "DELETE FROM web_tokens WHERE user_id = ? AND token NOT IN ("
+        "SELECT token FROM web_tokens WHERE user_id = ? ORDER BY created_at DESC LIMIT 7)",
+        (user_id, user_id))
     c.execute(
         "INSERT INTO web_tokens (token, user_id, user_name, guild_id, created_at, expires_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
@@ -742,6 +748,22 @@ def resolve_token(token: str) -> Optional[sqlite3.Row]:
     if row["expires_at"] < datetime.now(timezone.utc).isoformat():
         return None
     return row
+
+
+def renew_token(token: str, days: int) -> bool:
+    """使っている間は期限を延ばす。残りが半分を切ったときだけ書き込む。"""
+    now = datetime.now(timezone.utc)
+    row = connect().execute(
+        "SELECT expires_at FROM web_tokens WHERE token = ?", (token,)).fetchone()
+    if not row or row["expires_at"] < now.isoformat():
+        return False
+    if row["expires_at"] > (now + timedelta(days=days / 2)).isoformat():
+        return False
+    c = connect()
+    c.execute("UPDATE web_tokens SET expires_at = ? WHERE token = ?",
+              ((now + timedelta(days=days)).isoformat(), token))
+    c.commit()
+    return True
 
 
 def stats() -> dict:

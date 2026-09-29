@@ -91,6 +91,8 @@ API_PORT = int(os.getenv("PORT") or os.getenv("API_PORT") or "8787")
 WEB_ENABLED = os.getenv("WEB_ENABLED", "1") == "1"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
+# 「Discord でログイン」で入ったときの期限。使っている間は自動で延びる。
+WEB_LOGIN_DAYS = int(os.getenv("WEB_LOGIN_DAYS", "90"))
 
 # Web と Discord の相互同期
 # コメント: クリップのスレッドへ Webhook で本人名義で投稿し、

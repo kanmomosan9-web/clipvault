@@ -1,8 +1,10 @@
 import asyncio
+import html
 import logging
 import aiohttp
 import secrets
 from pathlib import Path
+from urllib.parse import quote, unquote, urlencode
 from aiohttp import web
 
 import config
@@ -14,6 +16,59 @@ log = logging.getLogger("web")
 
 STATIC = Path(__file__).parent / "web"
 COOKIE = "cv_token"
+LOGIN_COOKIE = "cv_login"
+REDIRECT_PATH = "/auth/callback"
+
+
+def redirect_uri() -> str:
+    """Developer Portal の OAuth2 → Redirects に登録する URL。"""
+    return f"{config.PUBLIC_URL}{REDIRECT_PATH}" if config.PUBLIC_URL else ""
+
+
+def _safe_next(value: str) -> str:
+    """ログイン後の戻り先。外部サイトへ飛ばされないよう自サイト内のパスだけ許す。"""
+    if not value or not value.startswith("/") or value.startswith("//") or "\\" in value:
+        return "/"
+    return value[:300]
+
+
+def set_login_cookie(resp: web.Response, token: str) -> None:
+    resp.set_cookie(COOKIE, token, max_age=60 * 60 * 24 * config.WEB_LOGIN_DAYS,
+                    httponly=True, samesite="Lax",
+                    secure=config.PUBLIC_URL.startswith("https://"))
+
+
+def page(title: str, body: str, status: int = 200) -> web.Response:
+    """ログインまわりのお知らせ画面。"""
+    text = f"""<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A1015"><title>ClipVault</title>
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#0A1015;
+color:#F0E6D2;font-family:system-ui,sans-serif}}main{{max-width:420px;padding:40px 24px;text-align:center}}
+h1{{font-size:14px;letter-spacing:.2em;color:#C8AA6E;margin:0 0 18px}}p{{color:#9AA8B5;line-height:1.7;font-size:14px}}
+b{{color:#F0E6D2;font-size:16px;display:block;margin-bottom:8px}}
+a{{display:inline-block;margin-top:18px;padding:11px 22px;background:#5865F2;color:#fff;
+text-decoration:none;border-radius:4px;font-size:14px}}</style></head>
+<body><main><h1>CLIPVAULT</h1><b>{html.escape(title)}</b>{body}</main></body></html>"""
+    return web.Response(text=text, content_type="text/html", status=status,
+                        headers={"Cache-Control": "no-store"})
+
+
+async def is_member(client, user_id: int) -> bool:
+    """ブラウザからのログインは、このサーバーのメンバーだけに許す。"""
+    if not config.GUILD_ID:
+        return True
+    get = getattr(client, "get_guild", None)
+    guild = get(config.GUILD_ID) if get else None
+    if guild is None:
+        return False
+    if guild.get_member(user_id) is not None:
+        return True
+    try:
+        await guild.fetch_member(user_id)
+        return True
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------- auth
@@ -75,13 +130,15 @@ def _clip_brief(row, tags, reacts, comments, faved=False) -> dict:
     }
 
 
-async def exchange_code(code: str) -> dict:
+async def exchange_code(code: str, redirect: str = "") -> dict:
     """Activity から渡された認可コードをアクセストークンに交換する。
 
     client_secret を使うのでブラウザ側では絶対にやらない。必ずサーバー経由。
     """
     data = {"client_id": config.CLIENT_ID, "client_secret": config.CLIENT_SECRET,
             "grant_type": "authorization_code", "code": code}
+    if redirect:
+        data["redirect_uri"] = redirect
     async with aiohttp.ClientSession() as sess:
         async with sess.post("https://discord.com/api/oauth2/token", data=data) as r:
             if r.status != 200:
@@ -102,11 +159,89 @@ def add_routes(app: web.Application, client) -> None:
         u = request["user"]
         base = config.PUBLIC_URL
         tok = _token_from(request)
-        return web.json_response({
+        resp = web.json_response({
             "id": str(u["user_id"]), "name": u["user_name"],
             # 再生できない環境から外部ブラウザへ逃がすためのURL
             "browser_url": f"{base}/?t={tok}" if base and tok else "",
+            "login": bool(config.CLIENT_ID and config.CLIENT_SECRET and base),
         })
+        # 使っている間は期限を延ばす。ブラウザ版はクッキーも延ばす。
+        if tok and db.renew_token(tok, config.WEB_LOGIN_DAYS) \
+                and request.cookies.get(COOKIE) == tok:
+            set_login_cookie(resp, tok)
+        return resp
+
+    # ------------------------------------------------------------ ブラウザ版のログイン
+    async def login(request):
+        if not (config.CLIENT_ID and config.CLIENT_SECRET and config.PUBLIC_URL):
+            return page("ログインが設定されていません",
+                        "<p>VM の .env に CLIENT_ID・CLIENT_SECRET・PUBLIC_URL を設定してください。"
+                        "<br>それまでは Discord で /library を実行して出るリンクから入れます。</p>",
+                        503)
+        state = secrets.token_urlsafe(18)
+        nxt = _safe_next(request.query.get("next", "/"))
+        url = "https://discord.com/oauth2/authorize?" + urlencode({
+            "client_id": config.CLIENT_ID, "response_type": "code",
+            "redirect_uri": redirect_uri(), "scope": "identify",
+            "state": state, "prompt": "none",
+        })
+        resp = web.HTTPFound(url)
+        resp.set_cookie(LOGIN_COOKIE, f"{state}.{quote(nxt, safe='')}", max_age=600, httponly=True,
+                        samesite="Lax", secure=config.PUBLIC_URL.startswith("https://"))
+        return resp
+
+    async def auth_callback(request):
+        again = '<a href="/login">もう一度ログイン</a>'
+        saved = request.cookies.get(LOGIN_COOKIE, "")
+        state, _, nxt = saved.partition(".")
+        nxt = unquote(nxt)
+        if request.query.get("error"):
+            return page("ログインがキャンセルされました", f"<p>もう一度お試しください。</p>{again}")
+        if not state or request.query.get("state") != state:
+            return page("ログインの有効期限が切れました",
+                        f"<p>ログイン画面を開いてから時間が経ちすぎたか、別のブラウザで開いています。</p>{again}",
+                        400)
+        code = request.query.get("code", "")
+        try:
+            got = await exchange_code(code, redirect_uri())
+        except Exception as e:
+            log.error("web login failed: %s", e)
+            return page("ログインに失敗しました",
+                        f"<p>Developer Portal の OAuth2 → Redirects に<br>"
+                        f"<code>{html.escape(redirect_uri())}</code><br>が登録されているか確認してください。</p>"
+                        f"{again}", 401)
+        u = got["user"]
+        uid = int(u["id"])
+        name = u.get("global_name") or u.get("username") or "unknown"
+        if not await is_member(client, uid):
+            log.warning("web login denied (not a member): %s (%s)", name, uid)
+            return page("このサーバーのメンバーではありません",
+                        "<p>ClipVault はサーバーのメンバーだけが使えます。</p>", 403)
+        tok = new_token()
+        db.issue_token(tok, uid, name, config.GUILD_ID, days=config.WEB_LOGIN_DAYS)
+        log.info("web login: %s (%s)", name, uid)
+        resp = web.HTTPFound(_safe_next(nxt))
+        set_login_cookie(resp, tok)
+        resp.del_cookie(LOGIN_COOKIE)
+        return resp
+
+    async def logout(request):
+        tok = request.cookies.get(COOKIE)
+        if tok:
+            db.connect().execute("DELETE FROM web_tokens WHERE token = ?", (tok,))
+            db.connect().commit()
+        resp = page("ログアウトしました", '<a href="/login">Discord でログイン</a>')
+        resp.del_cookie(COOKIE)
+        return resp
+
+    # ------------------------------------------------------------ ホーム画面に追加
+    async def manifest(request):
+        return web.FileResponse(STATIC / "manifest.webmanifest", headers={
+            "Content-Type": "application/manifest+json", "Cache-Control": "no-cache"})
+
+    async def service_worker(request):
+        return web.FileResponse(STATIC / "sw.js", headers={
+            "Content-Type": "text/javascript", "Cache-Control": "no-cache"})
 
     # ------------------------------------------------------------ listing
     async def clips(request):
@@ -445,8 +580,7 @@ def add_routes(app: web.Application, client) -> None:
                             headers={"Cache-Control": "no-cache"})
         tok = request.query.get("t")
         if tok and db.resolve_token(tok):
-            resp.set_cookie(COOKIE, tok, max_age=60 * 60 * 24 * 30,
-                            httponly=True, samesite="Lax")
+            set_login_cookie(resp, tok)
         return resp
 
     @web.middleware
@@ -467,6 +601,11 @@ def add_routes(app: web.Application, client) -> None:
     r.add_get("/", index)
     r.add_get("/app", index)
     r.add_post("/api/token", activity_token)
+    r.add_get("/login", login)
+    r.add_get(REDIRECT_PATH, auth_callback)
+    r.add_get("/logout", logout)
+    r.add_get("/manifest.webmanifest", manifest)
+    r.add_get("/sw.js", service_worker)
     r.add_get("/api/me", require_user(me))
     r.add_get("/api/clips", require_user(clips))
     r.add_get("/api/clips/{id}", require_user(clip_detail))

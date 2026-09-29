@@ -203,6 +203,98 @@ async def main():
         r = await send("POST", "/api/clips/99999/seen", {})
         assert r.status == 404
 
+        # ---------------------------------------------------- ブラウザ版ログイン
+        config.CLIENT_ID, config.CLIENT_SECRET = "123", "sec"
+        config.PUBLIC_URL = "https://cv.example.ts.net"
+        r = await cli.get("/login?next=/%3Fmode%3Dshorts", allow_redirects=False)
+        loc = r.headers.get("Location", "")
+        print("GET /login            ->", r.status, loc[:60] + "…")
+        assert r.status == 302 and loc.startswith("https://discord.com/oauth2/authorize")
+        from urllib.parse import unquote
+        assert "redirect_uri=https://cv.example.ts.net/auth/callback" in unquote(loc)
+        state = loc.split("state=")[1].split("&")[0]
+        login_cookie = r.cookies["cv_login"].value
+        assert login_cookie.startswith(state + ".")
+        # 本番は https なので Secure クッキーが送られる。テストは http なので手で付ける。
+        LC = {"Cookie": f"cv_login={login_cookie}"}
+
+        r = await cli.get(f"/auth/callback?code=x&state=WRONG", allow_redirects=False)
+        print("callback（state 不一致）->", r.status, "(400 が正しい)")
+        assert r.status == 400
+
+        async def fake_exchange(code, redirect=""):
+            assert redirect == "https://cv.example.ts.net/auth/callback"
+            return {"access_token": "a", "user": {"id": "5555", "global_name": "やしき"}}
+        real_exchange = webui.exchange_code
+        webui.exchange_code = fake_exchange
+        saved_guild = config.GUILD_ID
+        try:
+            config.GUILD_ID = 0
+            r = await cli.get(f"/auth/callback?code=x&state={state}", allow_redirects=False,
+                              headers=LC)
+            print("callback（正常）        ->", r.status, r.headers.get("Location"))
+            assert r.status == 302 and r.headers["Location"] == "/?mode=shorts"
+            web_tok = r.cookies["cv_token"].value
+            row = db.resolve_token(web_tok)
+            assert row and row["user_name"] == "やしき"
+            assert row["expires_at"][:4] >= "2026"
+            r = await cli.get("/api/me", headers={"X-ClipVault-Token": web_tok})
+            assert (await r.json())["name"] == "やしき"
+
+            # 2 台目でログインしても 1 台目は切れない
+            tok_b = webui.new_token()
+            db.issue_token(tok_b, 5555, "やしき", 0, days=90)
+            assert db.resolve_token(web_tok) and db.resolve_token(tok_b)
+            print("別の端末でログイン      -> 両方有効")
+
+            # サーバーのメンバーでなければ入れない
+            r = await cli.get("/login", allow_redirects=False)
+            st2 = r.headers["Location"].split("state=")[1].split("&")[0]
+            lc2 = {"Cookie": f"cv_login={r.cookies['cv_login'].value}"}
+            config.GUILD_ID = 424242
+            r = await cli.get(f"/auth/callback?code=x&state={st2}", allow_redirects=False,
+                              headers=lc2)
+            print("メンバー以外            ->", r.status, "(403 が正しい)")
+            assert r.status == 403
+        finally:
+            webui.exchange_code = real_exchange
+            config.GUILD_ID = saved_guild
+
+        # 外部サイトへの戻り先は無視する
+        assert webui._safe_next("https://evil.example") == "/"
+        assert webui._safe_next("//evil.example") == "/"
+        assert webui._safe_next("/?mode=shorts") == "/?mode=shorts"
+
+        # 使っている間は期限が延びる
+        db.connect().execute("UPDATE web_tokens SET expires_at = '2000-01-01' WHERE token = ?",
+                             (tok_b,))
+        assert not db.renew_token(tok_b, 90), "期限切れは延ばさない"
+        near = (__import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+                + __import__("datetime").timedelta(days=3)).isoformat()
+        db.connect().execute("UPDATE web_tokens SET expires_at = ? WHERE token = ?",
+                             (near, web_tok))
+        db.connect().commit()
+        r = await cli.get("/api/me", headers={"X-ClipVault-Token": web_tok})
+        assert db.resolve_token(web_tok)["expires_at"] > near
+        print("期限の自動延長          -> OK")
+
+        r = await cli.get("/logout", headers={"Cookie": f"cv_token={web_tok}"})
+        print("GET /logout           ->", r.status)
+        assert db.resolve_token(web_tok) is None
+
+        r = await cli.get("/manifest.webmanifest")
+        mf = json.loads(await r.text())
+        print("manifest              ->", r.status, r.headers["Content-Type"], mf["display"])
+        assert r.status == 200 and "manifest" in r.headers["Content-Type"]
+        for ic in mf["icons"]:
+            rr = await cli.get(ic["src"])
+            assert rr.status == 200, ic["src"]
+        r = await cli.get("/sw.js")
+        assert r.status == 200 and "javascript" in r.headers["Content-Type"]
+        r = await cli.get("/assets/icons/apple-touch-icon.png")
+        assert r.status == 200
+        config.PUBLIC_URL = ""
+
         r = await send("POST", "/api/log",
                        {"tag": "media", "detail": {"errorCode": 4}})
         print("POST /api/log         ->", r.status, "(サーバーログに残る)")

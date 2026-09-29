@@ -21,7 +21,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29e (bottom nav)"
+BUILD = "2026-09-29f (web login + app)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -886,7 +886,10 @@ async def cmd_library(interaction: discord.Interaction):
 
     e = discord.Embed(
         title="🎬 クリップライブラリ",
-        description="サムネイル一覧、検索、再生、タグ編集、コメントが使えます。",
+        description=("サムネイル一覧、検索、再生、タグ編集、コメントが使えます。\n"
+                     "次回からはブラウザで開いて「Discord でログイン」でも入れます。\n"
+                     "スマホは開いたあと「検索・絞り込み」→「📲 ホーム画面に追加」で"
+                     "アプリのように使えます。"),
         colour=0xC8AA6E)
     e.add_field(name="有効期限", value=f"{config.WEB_TOKEN_DAYS} 日", inline=True)
     e.add_field(name="ログイン", value=interaction.user.display_name, inline=True)
