@@ -267,7 +267,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-09-29a (shorts feed)")
+        print("  INFO BUILD 2026-09-29b (shorts fix)")
     print()
 
 

@@ -55,6 +55,8 @@ function fakeFetch(url, init) {
   if (u.includes("/api/me")) return json({ id: "4242", name: "つるかん",
     browser_url: "https://clipvault.example.ts.net/?t=TOK" });
   if (u.includes("/api/log")) return json({ ok: true });
+  if (u.includes("/api/session/")) return json({ host_id: null, host_name: "",
+    is_host: false, view: {}, rev: 0, tick: 0, elapsed: 0, watchers: ["つるかん"] });
   if (u.includes("/api/facets")) return json(FACETS);
   if (u.includes("/favorite")) return json({ favorited: true, count: 2 });
   if (u.includes("/reactions")) return json({ added: true, reactions: DETAIL.reactions });
@@ -101,6 +103,9 @@ async function boot(activity, url) {
   }
 
   await new Promise((r) => w.addEventListener("load", r));
+  if (typeof w.__start !== "function") {
+    throw new Error("window.__start が定義されていない（スクリプトの途中で例外）");
+  }
   await w.__start();
   await new Promise((r) => setTimeout(r, 60));
   return w;
@@ -310,6 +315,22 @@ async function boot(activity, url) {
   check(calls.some((c) => c.includes("sort=random") && c.includes("game=LoL")),
         "ゲームの絞り込みが効いている");
 
+  console.log("\n=== Discord から起動（instance_id 付き） ===");
+  const errs = [];
+  const wi = await boot(true, "https://123.discordsays.com/?instance_id=i-abc&frame_id=f&platform=desktop")
+    .catch((e) => { errs.push(e.message); return null; });
+  check(!!wi, "window.__start が定義されている" + (errs.length ? " — " + errs[0] : ""));
+  if (wi) {
+    check(wi.document.querySelectorAll(".card").length === 2, "一覧が表示された");
+    check(!wi.document.getElementById("syncbar").hidden, "みんなで見るバーが出た");
+    wi.document.getElementById("shortsbtn").onclick();
+    await sleep(120);
+    check(wi.__state().shorts.on, "Activity 内でもショートが開く");
+    const sv = wi.document.querySelector("#s-feed video");
+    check(!!sv && sv.getAttribute("src").startsWith("/.proxy/"), "動画はプロキシ経由");
+    wi.close();
+  }
+
   console.log("\n=== ショートの同時視聴（追従側） ===");
   await wu.applyView({ host_id: "9", host_name: "たいち", rev: 50,
                        view: { shorts: 2, playing: true, position: 1 } });
@@ -321,5 +342,6 @@ async function boot(activity, url) {
   check(!wu.__state().shorts.on, "ホストが閉じたら閉じる");
 
   console.log(`\n${fail.length ? "NG: " + fail.join(" / ") : "DOM OK"}`);
+  [w, wa, ws, wu].forEach((x) => { try { x.close(); } catch (e) {} });
   process.exit(fail.length ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

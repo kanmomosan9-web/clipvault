@@ -515,6 +515,14 @@ let ME={name:"?"},query="",filters={game:null,tag:null,by:null},
 let offset=0,total=0,loading=false,done=false,io=null;
 let onlyFav=false,favTotal=0;
 const PAGE=36;
+const SH={on:false,seed:0,start:"",items:[],offset:0,done:false,loading:false,
+  idx:-1,cur:null,auto:true,muted:false,caps:true,follow:false,
+  detail:new Map(),seen:new Set(),seenTimer:null,tapTimer:null,sheet:null};
+const SPAGE=10;
+try{
+  const a=localStorage.getItem("cv_shorts_auto");if(a!==null)SH.auto=a==="1";
+  const c=localStorage.getItem("cv_shorts_caps");if(c!==null)SH.caps=c==="1";
+}catch(e){}
 
 async function boot(){
   try{ME=await API.get("/api/me")}catch(e){return fail()}
@@ -1229,14 +1237,6 @@ if(INSTANCE){
 // クリップを縦に並べ、スワイプ（ホイール・↑↓キー）で1本ずつ切り替える。
 // 順番はシード付きのランダム。まだ見ていないクリップが先に来る。
 // 動画要素は「今の1本」と「次の1本（先読み）」だけ持ち、それ以外は捨てる。
-const SH={on:false,seed:0,start:"",items:[],offset:0,done:false,loading:false,
-  idx:-1,cur:null,auto:true,muted:false,caps:true,follow:false,
-  detail:new Map(),seen:new Set(),seenTimer:null,tapTimer:null,sheet:null};
-const SPAGE=10;
-try{
-  const a=localStorage.getItem("cv_shorts_auto");if(a!==null)SH.auto=a==="1";
-  const c=localStorage.getItem("cv_shorts_caps");if(c!==null)SH.caps=c==="1";
-}catch(e){}
 const feed=()=>$("s-feed");
 const slides=()=>[...feed().querySelectorAll(".slide[data-id]")];
 
