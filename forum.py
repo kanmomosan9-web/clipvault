@@ -183,19 +183,45 @@ async def edit_post(client, post_id: int) -> None:
 
 
 async def delete_post(client, post: dict, thread: dict) -> None:
-    """DB から消した後に呼ぶ。Discord 側の対応するメッセージも消す。"""
+    """DB から消した後に呼ぶ。Discord 側の対応するメッセージも消す。
+
+    Web で書いたもの（Webhook の投稿）は Webhook 自身で消す。
+    bot として消すには「メッセージの管理」権限が必要で、無いと Discord に残ってしまうため。
+    """
     if not enabled() or not thread.get("discord_thread_id"):
         return
-    ch = await _channel(client, thread["discord_thread_id"])
+    tid = thread["discord_thread_id"]
+    ch = await _channel(client, tid)
+    mid, fid = post.get("discord_message_id"), post.get("discord_forward_id")
+
+    if mid and mid != fid:
+        done = False
+        wh = await sync.ensure_webhook(client, config.FORUM_CHANNEL_ID)
+        if wh is not None:
+            try:
+                await wh.delete_message(mid, thread=discord.Object(tid))
+                done = True
+            except discord.NotFound:
+                done = True
+            except discord.HTTPException as e:
+                log.info("Webhook での削除に失敗: %s", e)
+        if not done:
+            await _delete_as_bot(ch, mid)
+    if fid:
+        await _delete_as_bot(ch, fid)
+
+
+async def _delete_as_bot(ch, mid: int) -> None:
     if ch is None:
         return
-    for mid in (post.get("discord_message_id"), post.get("discord_forward_id")):
-        if not mid:
-            continue
-        try:
-            await ch.get_partial_message(mid).delete()
-        except discord.HTTPException as e:
-            log.info("Discord 側の削除に失敗: %s", e)
+    try:
+        await ch.get_partial_message(mid).delete()
+    except discord.NotFound:
+        pass
+    except discord.Forbidden:
+        log.warning("Discord 側のメッセージを消せません。bot に『メッセージの管理』権限を付けてください")
+    except discord.HTTPException as e:
+        log.info("Discord 側の削除に失敗: %s", e)
 
 
 async def rename_thread(client, thread_id: int) -> None:

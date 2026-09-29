@@ -35,7 +35,7 @@ class Sent:
 
 class FakeWebhook:
     def __init__(self):
-        self.sent, self.edited, self.next = [], [], 9000
+        self.sent, self.edited, self.deleted, self.next = [], [], [], 9000
 
     async def send(self, content, username, avatar_url=None, thread=None, thread_name=None,
                    wait=True, allowed_mentions=None):
@@ -47,6 +47,9 @@ class FakeWebhook:
 
     async def edit_message(self, mid, content, thread):
         self.edited.append((mid, content))
+
+    async def delete_message(self, mid, thread):
+        self.deleted.append(mid)
 
 
 class FakeSrc:
@@ -274,6 +277,22 @@ async def main():
         board.edit_post(p2, "いいね！")
         await forum.edit_post(cli3, p2)
         check(wh.edited and wh.edited[-1][1] == "いいね！", "編集も Discord に反映")
+
+        # Web で書いたものを消すと、Discord 側は Webhook で消す（bot の権限不要）
+        removed = []
+
+        async def chan_del(client, cid):
+            return NS(id=cid, get_partial_message=lambda m: NS(delete=lambda: _rm(m)))
+
+        async def _rm(m):
+            removed.append(m)
+        forum._channel = chan_del
+        p1row = dict(board.get_post(p1))
+        board.delete_post(p1)
+        await forum.delete_post(cli3, p1row, dict(board.get_thread(tid)))
+        check(p1row["discord_message_id"] in wh.deleted, "本文は Webhook で消す")
+        check(p1row["discord_forward_id"] in removed, "転送は bot が消す")
+        forum._channel = chan
 
         # 権限が無くて送れなかった分は、あとでまとめて送り直す
         tid2 = board.create_thread("権限なしの間", 300, "やしき")

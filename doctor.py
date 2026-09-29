@@ -286,7 +286,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-09-29l (activity delete, share button, forward fallback)")
+        print("  INFO BUILD 2026-09-29m (delete webhook posts)")
     print()
 
 
