@@ -21,7 +21,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29c (mobile layout)"
+BUILD = "2026-09-29e (bottom nav)"
 
 intents = discord.Intents.default()
 intents.message_content = True

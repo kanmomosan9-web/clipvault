@@ -350,7 +350,8 @@ async function boot(activity, url, opts) {
   const $m = (id) => wm.document.getElementById(id);
   let sm = wm.__state();
   check(sm.compact === true, "狭い画面として判定");
-  check($m("mpbody").contains($m("shortsbtn")), "ショートボタンはメニューの中");
+  check(!!$m("bnav") && $m("bnav").contains($m("menubtn")), "操作は下のバーにある");
+  check(!wm.document.querySelector("header").contains($m("menubtn")), "上のバーには置かない");
   check($m("mpbody").contains($m("q")) && $m("mpbody").contains($m("sort")),
         "検索窓と並び替えはメニューの中");
   check($m("mpbody").querySelector("aside") !== null, "絞り込みもメニューの中");
@@ -364,10 +365,17 @@ async function boot(activity, url, opts) {
   await sleep(80);
   check($m("mpanel").hidden, "絞り込みを選ぶと閉じる");
   check(!$m("mdot").hidden, "絞り込み中の印が出る");
-  $m("menubtn").onclick();
-  $m("shortsbtn").click();
+  $m("nav-fav").onclick();
+  await sleep(80);
+  check(wm.__state().onlyFav && $m("nav-fav").getAttribute("aria-pressed") === "true",
+        "下のバーでお気に入り絞り込み");
+  $m("nav-home").onclick();
   await sleep(120);
-  check(wm.__state().shorts.on && $m("mpanel").hidden, "メニューからショートを開ける");
+  check(!wm.__state().onlyFav && wm.__state().filters.game === null, "一覧ボタンで解除");
+  $m("menubtn").onclick();
+  $m("nav-shorts").onclick();
+  await sleep(120);
+  check(wm.__state().shorts.on && $m("mpanel").hidden, "下のバーからショートを開ける");
   wm.close();
 
   console.log("\n=== スマホの Discord ではみんなで見るを出さない ===");
@@ -377,6 +385,9 @@ async function boot(activity, url, opts) {
     { width: 390, touch: true });
   await sleep(60);
   check(wp.__state().phone === true, "スマホとして判定");
+  check(wp.document.body.classList.contains("dc-mobile"), "退出ボタンの場所を空ける");
+  const hdr = wp.document.querySelector("header");
+  check(!hdr.querySelector("button:not(.mark):not(#shortsbtn)"), "上のバーにはロゴ以外のボタンが無い（ショートは CSS で非表示）");
   check(wp.document.getElementById("syncbar").hidden, "みんなで見るバーが出ない");
   check(!calls.some((c) => c.includes("/api/session/")), "同時視聴の通信をしない");
   wp.close();

@@ -371,32 +371,37 @@ body.following .shorts .s-side{opacity:.55}
 
 
 /* ---------------------------------------------------------------- スマホ */
-.menubtn{display:none;margin-left:auto;height:34px;padding:0 12px;align-items:center;gap:7px;
-  border:1px solid var(--line);background:var(--surface);font-size:12.5px;color:var(--text);position:relative}
-.menubtn svg{width:15px;height:15px;stroke:var(--gold);fill:none;stroke-width:2}
-.menubtn[aria-expanded="true"]{border-color:var(--gold)}
-.mdot{position:absolute;right:-3px;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--teal)}
+/* 狭い画面では操作を下のバーにまとめる。
+   スマホ版 Discord は上の角に退出ボタンなどを重ねてくるため、上には押す物を置かない。 */
+.bnav,.mpanel,.mback{display:none}
+.mdot{position:absolute;right:calc(50% - 20px);top:4px;width:9px;height:9px;border-radius:50%;background:var(--teal)}
 .mdot[hidden]{display:none}
-.mpanel,.mback{display:none}
+body.dc-mobile header{padding:0 72px;justify-content:center}
+body.dc-mobile .s-top{padding:10px 72px;justify-content:center}
+body.dc-mobile .s-top .spacer{display:none}
 @media(max-width:900px){
-  header{gap:10px;padding:0 12px}
-  header .search,header #sort,header .shortsbtn{display:none}
-  .me{margin-left:0}
-  .me #who{display:none}
+  header{gap:10px;padding:0 12px;height:50px}
+  header .search,header #sort,header .shortsbtn,.me{display:none}
   .count{font-size:11px}
-  .menubtn{display:flex}
-  .stage{padding:14px 12px 60px}
+  .stage{padding:14px 12px 24px}
   .grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
   .player.inline{padding:12px;margin:2px 0 16px}
-  .mback{display:block;position:fixed;inset:56px 0 0 0;z-index:39;background:rgba(0,0,0,.55)}
+  .bnav{display:flex;flex:0 0 auto;position:relative;z-index:41;background:#0C131A;
+    border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .bnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:8px 2px 7px;color:var(--muted);font-size:10.5px;position:relative}
+  .bnav button i{font-style:normal;font-size:19px;line-height:1.2;filter:grayscale(.3)}
+  .bnav button[aria-pressed="true"],.bnav button[aria-expanded="true"]{color:var(--gold)}
+  .bnav #nav-shorts{color:var(--gold)}
+  .mback{display:block;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.55)}
   .mback[hidden]{display:none}
-  .mpanel{display:block;position:fixed;top:56px;left:0;right:0;z-index:40;max-height:calc(100% - 56px);
-    overflow-y:auto;background:#0C131A;border-bottom:2px solid var(--gold);padding:14px 14px 18px;
-    animation:drop .16s ease-out}
+  .mpanel{display:block;position:fixed;left:0;right:0;z-index:40;
+    bottom:calc(58px + env(safe-area-inset-bottom,0px));max-height:calc(100% - 130px);
+    overflow-y:auto;background:#0C131A;border-top:2px solid var(--gold);padding:16px 14px 18px;
+    animation:rise .16s ease-out}
   .mpanel[hidden]{display:none}
-  @keyframes drop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
   .mp-body{display:flex;flex-direction:column;gap:10px}
-  .mpanel .shortsbtn{height:44px;justify-content:center;font-size:14.5px;background:#1E1A12}
   .mpanel .search{max-width:none}
   .mpanel .search input{height:40px;font-size:16px}
   .mpanel .search svg{top:12px}
@@ -432,9 +437,6 @@ body.following .shorts .s-side{opacity:.55}
   <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
   <button class="shortsbtn" id="shortsbtn" title="ランダムな順番でスワイプして次々見る">▶ ショート</button>
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
-  <button class="menubtn" id="menubtn" aria-expanded="false" title="検索・並び替え・ショート">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-    <span>検索・絞り込み</span><i class="mdot" id="mdot" hidden></i></button>
 </header>
 <div class="mback" id="mback" hidden></div>
 <div class="mpanel" id="mpanel" hidden><div class="mp-body" id="mpbody"></div></div>
@@ -502,16 +504,23 @@ body.following .shorts .s-side{opacity:.55}
   </div>
 </main>
 
+<nav class="bnav" id="bnav">
+  <button id="nav-home"><i>🏠</i><span>一覧</span></button>
+  <button id="menubtn" aria-expanded="false"><i>🔍</i><span>検索・絞り込み</span><b class="mdot" id="mdot" hidden></b></button>
+  <button id="nav-shorts"><i>▶</i><span>ショート</span></button>
+  <button id="nav-fav" aria-pressed="false"><i>☆</i><span>お気に入り</span></button>
+</nav>
+
 
 <section class="shorts" id="shorts" hidden>
   <div class="s-top" id="s-top">
-    <button class="x" id="s-close" title="閉じる (Esc)">✕</button>
     <b>SHORTS</b>
     <span class="cond" id="s-cond"></span>
     <span class="spacer"></span>
     <span id="s-sync"></span>
     <button id="s-auto" title="終わったら自動で次へ">自動で次へ</button>
     <button id="s-shuffle" title="シャッフルし直す">🔀</button>
+    <button class="x" id="s-close" title="閉じる (Esc)">✕</button>
   </div>
   <div class="s-hint" id="s-hint" hidden>🔇 タップで音声オン</div>
   <div class="s-feed" id="s-feed"></div>
@@ -1039,6 +1048,8 @@ async function goHome(){
 // スマホでは「みんなで見る」を使わない
 const PHONE=new URLSearchParams(location.search).get("platform")==="mobile"
   ||!!(window.matchMedia&&matchMedia("(pointer:coarse) and (max-width:700px)").matches);
+if(new URLSearchParams(location.search).get("platform")==="mobile")
+  document.body.classList.add("dc-mobile");
 const INSTANCE=PHONE?"":(new URLSearchParams(location.search).get("instance_id")||"");
 let syncRole="off";     // off / host / follow
 let syncState=null,syncTimer=null,watchTimer=null;
@@ -1769,7 +1780,7 @@ document.addEventListener("keydown",e=>{
 // 狭い画面では検索・並び替え・ショート・絞り込みをメニューにしまう。
 // 要素そのものを移すので、操作の処理はそのまま使える。
 const COMPACT=window.matchMedia?matchMedia("(max-width:900px)"):null;
-const SLOTS=["#shortsbtn",".search","#sort","aside"].map(sel=>{
+const SLOTS=[".search","#sort","aside"].map(sel=>{
   const el=document.querySelector(sel);
   const mark=document.createComment("slot");
   el.before(mark);
@@ -1792,8 +1803,13 @@ function closeMenu(){
   $("menubtn").setAttribute("aria-expanded","false");
 }
 function drawMenuDot(){
-  $("mdot").hidden=!(query||onlyFav||filters.game||filters.tag||filters.by||$("sort").value!=="new");
+  $("mdot").hidden=!(query||filters.game||filters.tag||filters.by||$("sort").value!=="new");
+  $("nav-fav").setAttribute("aria-pressed",onlyFav);
+  $("nav-fav").querySelector("i").textContent=onlyFav?"★":"☆";
 }
+$("nav-home").onclick=()=>{closeMenu();goHome()};
+$("nav-shorts").onclick=()=>{closeMenu();openShorts()};
+$("nav-fav").onclick=()=>{closeMenu();onlyFav=!onlyFav;reset()};
 $("menubtn").onclick=()=>$("mpanel").hidden?openMenu():closeMenu();
 $("mback").onclick=closeMenu;
 $("mpanel").addEventListener("click",e=>{
