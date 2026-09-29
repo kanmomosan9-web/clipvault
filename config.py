@@ -1,4 +1,6 @@
 import os
+import re
+import unicodedata
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -94,7 +96,19 @@ WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
 # 「Discord でログイン」で入ったときの期限。使っている間は自動で延びる。
 WEB_LOGIN_DAYS = int(os.getenv("WEB_LOGIN_DAYS", "90"))
 # 掲示板とつなげる Discord のフォーラムチャンネル。0 なら Web だけの掲示板になる。
-FORUM_CHANNEL_ID = int(os.getenv("FORUM_CHANNEL_ID", "0") or 0)
+def _discord_id(name: str) -> int:
+    """.env の ID を読む。全角数字・かっこ・空白・コメントが混ざっていても数字だけ拾う。
+
+    書き方を少し間違えただけで bot 全体が起動しなくなるのを防ぐ。
+    """
+    raw = unicodedata.normalize("NFKC", os.getenv(name, "") or "")
+    m = re.search(r"\d{5,}", raw)
+    if raw.strip() and not m:
+        print(f"[config] {name} の値が読めません（数字の ID を書いてください）: {raw!r}")
+    return int(m.group()) if m else 0
+
+
+FORUM_CHANNEL_ID = _discord_id("FORUM_CHANNEL_ID")
 # bot 起動時に、止まっていた間のリアクションを数え直す件数（新しい順）
 REACTION_CATCHUP = int(os.getenv("REACTION_CATCHUP", "300"))
 

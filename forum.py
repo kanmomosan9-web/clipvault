@@ -7,6 +7,7 @@ Discord → Web
   フォーラムに直接書かれたものを取り込む。転送・メッセージリンクは
   どのクリップかを判別してクリップとして、動画ファイルはそのまま再生できる形で載せる。
 """
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -91,6 +92,38 @@ async def push_post(client, post_id: int) -> None:
 
     if clip is not None:
         await _forward_clip(client, post_id, clip, thread["discord_thread_id"])
+
+
+_push_lock = asyncio.Lock()
+
+
+async def push_pending(client, limit: int = 200) -> int:
+    # 続けて書き込まれたときに同じ書き込みを二重に送らないよう、1 つずつ処理する
+    async with _push_lock:
+        return await _push_pending(client, limit)
+
+
+async def _push_pending(client, limit: int) -> int:
+    """Discord に送れていない Web の書き込みを送り直す（権限が無かった間の分など）。
+
+    Discord から取り込んだ書き込みは必ず discord_message_id を持つので、
+    それが空のものは Web で書かれてまだ届いていないものだけ。
+    """
+    if not enabled() or client is None:
+        return 0
+    rows = db.connect().execute(
+        "SELECT id FROM board_posts WHERE discord_message_id IS NULL ORDER BY id LIMIT ?",
+        (limit,)).fetchall()
+    sent = 0
+    for r in rows:
+        await push_post(client, r["id"])
+        if board.get_post(r["id"]) and board.get_post(r["id"])["discord_message_id"]:
+            sent += 1
+        else:
+            break                      # まだ送れない（権限など）。次の機会に回す
+    if rows:
+        log.info("未送信の書き込みを Discord に送りました: %d / %d 件", sent, len(rows))
+    return sent
 
 
 async def _forward_clip(client, post_id: int, clip, discord_thread_id: int) -> None:

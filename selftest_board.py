@@ -274,6 +274,23 @@ async def main():
         board.edit_post(p2, "いいね！")
         await forum.edit_post(cli3, p2)
         check(wh.edited and wh.edited[-1][1] == "いいね！", "編集も Discord に反映")
+
+        # 権限が無くて送れなかった分は、あとでまとめて送り直す
+        tid2 = board.create_thread("権限なしの間", 300, "やしき")
+        q1 = board.add_post(tid2, 300, "やしき", "1件目")
+        q2 = board.add_post(tid2, 200, "たいち", "2件目")
+
+        async def no_webhook(client, cid):
+            return None
+        sy.ensure_webhook = no_webhook
+        await forum.push_pending(cli3)
+        check(board.get_post(q1)["discord_message_id"] is None, "送れない間は未送信のまま残る")
+        sy.ensure_webhook = ensure
+        n = await forum.push_pending(cli3)
+        check(n == 2 and board.get_post(q2)["discord_message_id"]
+              and board.get_thread(tid2)["discord_thread_id"],
+              "権限が付いたら未送信分をまとめて送る（スレッドも作る）")
+        check(await forum.push_pending(cli3) == 0, "送った分は二重に送らない")
     finally:
         sy.ensure_webhook, sy._message_for, forum._channel = real_e, real_m, real_c
         config.FORUM_CHANNEL_ID = 0

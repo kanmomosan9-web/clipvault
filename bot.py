@@ -24,7 +24,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29i (board + notifications)"
+BUILD = "2026-09-29k (resend board posts)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -153,6 +153,7 @@ async def on_ready():
     if not _catchup_started:
         _catchup_started = True
         asyncio.create_task(catch_up_reactions())
+        asyncio.create_task(forum.push_pending(bot))
 
 
 _catchup_started = False
@@ -181,7 +182,7 @@ async def on_web_comment(clip_id, comment_id, user_id, user_name, body, at):
 
 
 async def on_board_post(post_id):
-    await forum.push_post(bot, post_id)
+    await forum.push_pending(bot)
 
 
 async def on_board_edit(post_id):
