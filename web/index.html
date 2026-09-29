@@ -65,6 +65,7 @@ aside{flex:0 0 190px;border-right:1px solid var(--line);overflow-y:auto;padding:
   padding:9px 22px;border-bottom:1px solid var(--gold-dim);
   background:#141A12;font-size:12.5px;
 }
+.syncbar[hidden]{display:none}
 .syncbar.live{border-color:var(--teal);background:#0E1A1B}
 .syncbar b{color:var(--gold);font-weight:500}
 .syncbar.live b{color:var(--teal)}
@@ -368,6 +369,49 @@ body.following .shorts .s-side{opacity:.55}
   .s-cap{bottom:120px}
 }
 
+
+/* ---------------------------------------------------------------- スマホ */
+.menubtn{display:none;margin-left:auto;height:34px;padding:0 12px;align-items:center;gap:7px;
+  border:1px solid var(--line);background:var(--surface);font-size:12.5px;color:var(--text);position:relative}
+.menubtn svg{width:15px;height:15px;stroke:var(--gold);fill:none;stroke-width:2}
+.menubtn[aria-expanded="true"]{border-color:var(--gold)}
+.mdot{position:absolute;right:-3px;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--teal)}
+.mdot[hidden]{display:none}
+.mpanel,.mback{display:none}
+@media(max-width:900px){
+  header{gap:10px;padding:0 12px}
+  header .search,header #sort,header .shortsbtn{display:none}
+  .me{margin-left:0}
+  .me #who{display:none}
+  .count{font-size:11px}
+  .menubtn{display:flex}
+  .stage{padding:14px 12px 60px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .player.inline{padding:12px;margin:2px 0 16px}
+  .mback{display:block;position:fixed;inset:56px 0 0 0;z-index:39;background:rgba(0,0,0,.55)}
+  .mback[hidden]{display:none}
+  .mpanel{display:block;position:fixed;top:56px;left:0;right:0;z-index:40;max-height:calc(100% - 56px);
+    overflow-y:auto;background:#0C131A;border-bottom:2px solid var(--gold);padding:14px 14px 18px;
+    animation:drop .16s ease-out}
+  .mpanel[hidden]{display:none}
+  @keyframes drop{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+  .mp-body{display:flex;flex-direction:column;gap:10px}
+  .mpanel .shortsbtn{height:44px;justify-content:center;font-size:14.5px;background:#1E1A12}
+  .mpanel .search{max-width:none}
+  .mpanel .search input{height:40px;font-size:16px}
+  .mpanel .search svg{top:12px}
+  .mpanel #sort{height:40px;font-size:15px;width:100%}
+  .mpanel aside{display:block!important;flex:none;border:none;background:none;padding:4px 0 0;overflow:visible}
+  .mpanel .rail-h{padding:0;margin:12px 0 7px}
+  .mpanel aside>div:not(.rail-h){display:flex;flex-wrap:wrap;gap:7px}
+  .mpanel .tag{width:auto;padding:6px 11px;border:1px solid var(--line);border-left-width:1px;font-size:13px}
+  .mpanel .tag[aria-pressed="true"]{border-color:var(--gold)}
+  .s-top b,.s-top .cond{display:none}
+  .s-top{padding:10px 10px;gap:8px}
+  .s-info{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+  .s-side{bottom:calc(34px + env(safe-area-inset-bottom,0px))}
+}
+
 @media(max-width:900px){aside{display:none}.pwrap{grid-template-columns:1fr}.pane{max-height:340px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -388,7 +432,12 @@ body.following .shorts .s-side{opacity:.55}
   <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
   <button class="shortsbtn" id="shortsbtn" title="ランダムな順番でスワイプして次々見る">▶ ショート</button>
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
+  <button class="menubtn" id="menubtn" aria-expanded="false" title="検索・並び替え・ショート">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <span>検索・絞り込み</span><i class="mdot" id="mdot" hidden></i></button>
 </header>
+<div class="mback" id="mback" hidden></div>
+<div class="mpanel" id="mpanel" hidden><div class="mp-body" id="mpbody"></div></div>
 
 <div class="syncbar" id="syncbar" hidden></div>
 
@@ -609,6 +658,7 @@ async function toggleFav(c){
 }
 
 function reset(){
+  drawMenuDot();
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
   pl.classList.remove("on","inline");openId=null;cur=null;
@@ -986,7 +1036,10 @@ async function goHome(){
 // ホストの画面をそのまま参加者に映す（Watch Together と同じ考え方）。
 // 再生位置だけでなく、検索語・絞り込み・並び順・開いているクリップ・
 // スクロール位置まで含めて共有し、参加者は操作しない。
-const INSTANCE=new URLSearchParams(location.search).get("instance_id")||"";
+// スマホでは「みんなで見る」を使わない
+const PHONE=new URLSearchParams(location.search).get("platform")==="mobile"
+  ||!!(window.matchMedia&&matchMedia("(pointer:coarse) and (max-width:700px)").matches);
+const INSTANCE=PHONE?"":(new URLSearchParams(location.search).get("instance_id")||"");
 let syncRole="off";     // off / host / follow
 let syncState=null,syncTimer=null,watchTimer=null;
 let lastSent="",applying=false,lastRev=-1;
@@ -1676,6 +1729,7 @@ $("home").onclick=goHome;
 // 状態の外部公開。テストと不具合報告のためだけに使う。
 window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
   items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState,
+  compact,phone:PHONE,menuOpen:!$("mpanel").hidden,
   shorts:{on:SH.on,idx:SH.idx,cur:SH.cur?SH.cur.id:null,n:SH.items.length,
           done:SH.done,seed:SH.seed,follow:SH.follow}});
 
@@ -1710,6 +1764,50 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&openId)closeClip();
   if(e.key==="/"&&!f){e.preventDefault();$("q").focus()}
 });
+
+// ---------------------------------------------------------------- スマホ配置
+// 狭い画面では検索・並び替え・ショート・絞り込みをメニューにしまう。
+// 要素そのものを移すので、操作の処理はそのまま使える。
+const COMPACT=window.matchMedia?matchMedia("(max-width:900px)"):null;
+const SLOTS=["#shortsbtn",".search","#sort","aside"].map(sel=>{
+  const el=document.querySelector(sel);
+  const mark=document.createComment("slot");
+  el.before(mark);
+  return {el,mark};
+});
+let compact=null;
+function layout(){
+  const m=!!(COMPACT&&COMPACT.matches);
+  if(m===compact)return;
+  compact=m;
+  SLOTS.forEach(({el,mark})=>m?$("mpbody").appendChild(el):mark.after(el));
+  if(!m)closeMenu();
+}
+function openMenu(){
+  $("mpanel").hidden=false;$("mback").hidden=false;
+  $("menubtn").setAttribute("aria-expanded","true");
+}
+function closeMenu(){
+  $("mpanel").hidden=true;$("mback").hidden=true;
+  $("menubtn").setAttribute("aria-expanded","false");
+}
+function drawMenuDot(){
+  $("mdot").hidden=!(query||onlyFav||filters.game||filters.tag||filters.by||$("sort").value!=="new");
+}
+$("menubtn").onclick=()=>$("mpanel").hidden?openMenu():closeMenu();
+$("mback").onclick=closeMenu;
+$("mpanel").addEventListener("click",e=>{
+  if(e.target.closest(".tag")||e.target.closest("#shortsbtn"))setTimeout(closeMenu,0);
+});
+$("sort").addEventListener("change",()=>{if(compact)closeMenu()});
+$("q").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.isComposing&&compact){e.target.blur();closeMenu()}
+});
+if(COMPACT){
+  if(COMPACT.addEventListener)COMPACT.addEventListener("change",layout);
+  else if(COMPACT.addListener)COMPACT.addListener(layout);
+}
+layout();
 window.__start = boot;
 
 </script>

@@ -81,14 +81,27 @@ const check = (cond, label) => {
   if (!cond) fail.push(label);
 };
 
-async function boot(activity, url) {
+async function boot(activity, url, opts) {
+  opts = opts || {};
   let html = fs.readFileSync(path.join(__dirname, "web", "index.html"), "utf8");
   html = html.replace("%%CLIENT_ID%%", "123").replace("%%CDN_PREFIX%%", "/.proxy/cdn");
   // boot.js はモジュールなので jsdom では読ませず、ブラウザ相当で起動する
   html = html.replace(/<script type="module"[^>]*><\/script>/, "");
 
   const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true,
-                                url: url || "https://clipvault.example.ts.net/" });
+                                url: url || "https://clipvault.example.ts.net/",
+                                beforeParse(win) {
+                                  if (!opts.width) return;
+                                  // 画面幅だけを見る簡易版の matchMedia
+                                  win.matchMedia = (q) => {
+                                    const mx = q.match(/max-width:\s*(\d+)px/);
+                                    const coarse = q.includes("pointer:coarse");
+                                    const ok = (!mx || opts.width <= Number(mx[1]))
+                                      && (!coarse || !!opts.touch);
+                                    return { matches: ok, media: q,
+                                             addEventListener() {}, addListener() {} };
+                                  };
+                                } });
   const w = dom.window;
   w.fetch = fakeFetch;
   // jsdom に無いものを補う
@@ -330,6 +343,51 @@ async function boot(activity, url) {
     check(!!sv && sv.getAttribute("src").startsWith("/.proxy/"), "動画はプロキシ経由");
     wi.close();
   }
+
+  console.log("\n=== スマホの配置 ===");
+  calls.length = 0;
+  const wm = await boot(false, "https://clipvault.example.ts.net/", { width: 390, touch: true });
+  const $m = (id) => wm.document.getElementById(id);
+  let sm = wm.__state();
+  check(sm.compact === true, "狭い画面として判定");
+  check($m("mpbody").contains($m("shortsbtn")), "ショートボタンはメニューの中");
+  check($m("mpbody").contains($m("q")) && $m("mpbody").contains($m("sort")),
+        "検索窓と並び替えはメニューの中");
+  check($m("mpbody").querySelector("aside") !== null, "絞り込みもメニューの中");
+  check(!wm.document.querySelector("header").contains($m("q")), "ヘッダーからは消えた");
+  check($m("mpanel").hidden, "最初は閉じている");
+  check(wm.document.querySelectorAll(".card").length === 2, "一覧は表示される");
+  $m("menubtn").onclick();
+  check(!$m("mpanel").hidden && $m("menubtn").getAttribute("aria-expanded") === "true",
+        "バーを押すと開く");
+  wm.document.querySelector("#games .tag").click();
+  await sleep(80);
+  check($m("mpanel").hidden, "絞り込みを選ぶと閉じる");
+  check(!$m("mdot").hidden, "絞り込み中の印が出る");
+  $m("menubtn").onclick();
+  $m("shortsbtn").click();
+  await sleep(120);
+  check(wm.__state().shorts.on && $m("mpanel").hidden, "メニューからショートを開ける");
+  wm.close();
+
+  console.log("\n=== スマホの Discord ではみんなで見るを出さない ===");
+  calls.length = 0;
+  const wp = await boot(true,
+    "https://123.discordsays.com/?instance_id=i-abc&frame_id=f&platform=mobile",
+    { width: 390, touch: true });
+  await sleep(60);
+  check(wp.__state().phone === true, "スマホとして判定");
+  check(wp.document.getElementById("syncbar").hidden, "みんなで見るバーが出ない");
+  check(!calls.some((c) => c.includes("/api/session/")), "同時視聴の通信をしない");
+  wp.close();
+
+  const wpc = await boot(true,
+    "https://123.discordsays.com/?instance_id=i-abc&frame_id=f&platform=desktop",
+    { width: 1400 });
+  check(!wpc.document.getElementById("syncbar").hidden, "PC では従来どおり出る");
+  check(!wpc.__state().compact && wpc.document.querySelector("header").contains(
+    wpc.document.getElementById("q")), "PC の配置は変わらない");
+  wpc.close();
 
   console.log("\n=== ショートの同時視聴（追従側） ===");
   await wu.applyView({ host_id: "9", host_name: "たいち", rev: 50,
