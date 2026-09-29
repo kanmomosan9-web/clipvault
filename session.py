@@ -26,10 +26,12 @@ VIEW_KEYS: dict[str, type] = {
     "query": str, "sort": str, "game": str, "tag": str, "by": str,
     "onlyFav": bool, "loaded": int,
     "openId": int, "position": float, "playing": bool, "scroll": int,
+    "shorts": int,
 }
 
 # 一覧の見え方を決めるキー。ここが変わったら参加者は作り直す。
-LAYOUT_KEYS = ("query", "sort", "game", "tag", "by", "onlyFav", "loaded", "openId")
+LAYOUT_KEYS = ("query", "sort", "game", "tag", "by", "onlyFav", "loaded", "openId",
+               "shorts")
 
 
 def clean_view(raw) -> dict:

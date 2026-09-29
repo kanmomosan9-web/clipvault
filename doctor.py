@@ -19,6 +19,7 @@ MARKERS = {
         ("複数添付の対応", "UNIQUE (message_id, attachment_id)"),
         ("リアクション専用更新", "def set_reactions"),
         ("ジョブキュー", "def claim_job"),
+        ("ショートのシャッフル", "def _shuffle_key"),
     ],
     "grid.py": [("リスト用タイル生成", "def tile_bytes")],
     "worker.py": [("文字起こしワーカー", "def transcribe"),
@@ -28,16 +29,17 @@ MARKERS = {
     "vocab.py": [("LoL 語彙", "PROMPT_TERMS"), ("認識結果の補正", "def correct")],
     "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code")],
     "sync.py": [("コメント同期", "def push_comment"), ("リアクション同期", "def push_reaction")],
-    "session.py": [("同時視聴", "def take_host")],
+    "session.py": [("同時視聴", "def take_host"), ("ショートの同時視聴", '"shorts"')],
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
     "web/assets/fonts.css": [("同梱フォント", "font-face")],
     "selftest_commands.py": [("コマンド欠落検査", "EXPECTED")],
     "selftest_dom.js": [("画面の描画検査", "DOM OK")],
     "selftest_drift.js": [("再生位置の補正検査", "DRIFT OK")],
+    "selftest_tags.py": [("本文タグの検査", "TAGS OK")],
     "selftest_media.py": [("動画中継の検査", "Range")],
     "diagnose_media.py": [("動画経路の診断", "URL Mappings")],
     "inspect_codecs.py": [("コーデック検査", "kUnsupportedConfig")],
-    "web/index.html": [("ブラウザ版UI", "CLIPVAULT")],
+    "web/index.html": [("ブラウザ版UI", "CLIPVAULT"), ("ショート", "openShorts")],
 }
 
 OK, NG, WARN = "  OK  ", "  NG  ", " WARN "
@@ -265,7 +267,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-08-22g (drift compensation)")
+        print("  INFO BUILD 2026-09-29a (shorts feed)")
     print()
 
 

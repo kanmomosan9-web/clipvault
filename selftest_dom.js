@@ -58,7 +58,15 @@ function fakeFetch(url, init) {
   if (u.includes("/api/facets")) return json(FACETS);
   if (u.includes("/favorite")) return json({ favorited: true, count: 2 });
   if (u.includes("/reactions")) return json({ added: true, reactions: DETAIL.reactions });
-  if (/\/api\/clips\/\d+$/.test(u)) return json(DETAIL);
+  if (u.includes("/seen")) return json({ ok: true });
+  if (u.includes("/comments")) return json({ id: 99 });
+  const m = u.match(/\/api\/clips\/(\d+)$/);
+  if (m) {
+    const base = CLIPS.find((c) => c.id === Number(m[1])) || CLIPS[0];
+    return json({ ...DETAIL, ...base, id: Number(m[1]),
+      comments: DETAIL.comments, segments: DETAIL.segments,
+      reactions: DETAIL.reactions });
+  }
   if (u.includes("/api/clips")) {
     return json({ total: CLIPS.length, offset: 0, has_more: false, items: CLIPS });
   }
@@ -71,13 +79,14 @@ const check = (cond, label) => {
   if (!cond) fail.push(label);
 };
 
-async function boot(activity) {
+async function boot(activity, url) {
   let html = fs.readFileSync(path.join(__dirname, "web", "index.html"), "utf8");
   html = html.replace("%%CLIENT_ID%%", "123").replace("%%CDN_PREFIX%%", "/.proxy/cdn");
   // boot.js はモジュールなので jsdom では読ませず、ブラウザ相当で起動する
   html = html.replace(/<script type="module"[^>]*><\/script>/, "");
 
-  const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true });
+  const dom = new JSDOM(html, { runScripts: "dangerously", pretendToBeVisual: true,
+                                url: url || "https://clipvault.example.ts.net/" });
   const w = dom.window;
   w.fetch = fakeFetch;
   // jsdom に無いものを補う
@@ -226,6 +235,90 @@ async function boot(activity) {
         "ダウンロードリンク");
   check(err.textContent.includes("ハードウェアアクセラレーション"),
         "対処の案内が出る");
+
+  // ---------------------------------------------------------- ショート
+  console.log("\n=== ショート ===");
+  DETAIL.cdn = "";
+  const ws = await boot(false);
+  const $s = (id) => ws.document.getElementById(id);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  calls.length = 0;
+  $s("shortsbtn").onclick();
+  await sleep(120);
+  let st = ws.__state().shorts;
+  check(!$s("shorts").hidden, "ショート画面が開いた");
+  check(st.on && st.idx === 0 && st.cur === 1, "1本目が選ばれている");
+  const req = calls.find((c) => c.includes("sort=random"));
+  check(!!req && /seed=\d+/.test(req) && req.includes("unseen=1"), "ランダム順で取得している");
+  const sl = ws.document.querySelectorAll("#s-feed .slide[data-id]");
+  check(sl.length === 2, `スライド ${sl.length} 枚`);
+  check(ws.document.querySelector("#s-feed .s-end") !== null, "最後に『全部見ました』");
+  const v0 = sl[0].querySelector("video");
+  check(!!v0 && v0.getAttribute("src") === "/media/1", "1本目の動画");
+  check(!!sl[1].querySelector("video"), "2本目を先読みしている");
+  check(sl[0].querySelector(".s-cap") !== null, "字幕の枠");
+
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
+  await sleep(100);
+  st = ws.__state().shorts;
+  check(st.idx === 1 && st.cur === 2, "↓キーで次へ");
+  check(!sl[0].querySelector("video"), "前の動画は破棄された");
+  check(!!sl[1].querySelector("video"), "2本目が再生対象");
+
+  // ダブルタップでお気に入り
+  calls.length = 0;
+  const tap = sl[1].querySelector(".s-tap");
+  tap.onclick(); tap.onclick();
+  await sleep(60);
+  check(sl[1].querySelector(".s-burst").classList.contains("go"), "ダブルタップで★の演出");
+  check(!calls.some((c) => c.includes("/api/clips/2/favorite")),
+        "登録済みはダブルタップで外さない");
+  calls.length = 0;
+  const tap0 = sl[0].querySelector(".s-tap");
+  tap0.onclick(); tap0.onclick();
+  await sleep(60);
+  check(calls.some((c) => c.includes("/api/clips/1/favorite")), "未登録はダブルタップで登録");
+
+  // コメント欄
+  sl[1].querySelector(".s-talk").onclick();
+  await sleep(40);
+  check($s("s-sheet").classList.contains("on"), "コメント欄が開いた");
+  check($s("s-sheet-b").querySelectorAll(".cm").length === 1, "コメントが描画された");
+  $s("s-tab-t").onclick();
+  check($s("s-sheet-b").querySelectorAll(".line").length === 2, "文字起こしタブ");
+  $s("s-sheet-x").onclick();
+
+  // 3 秒で「見た」になる
+  await sleep(3100);
+  check(calls.some((c) => c.includes("/api/clips/2/seen")), "3秒見たら既読を送る");
+
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
+  await sleep(60);
+  st = ws.__state().shorts;
+  check(st.idx === 2 && st.cur === null, "最後まで進むと終わりの画面");
+
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "Escape" }));
+  await sleep(40);
+  check($s("shorts").hidden && !ws.__state().shorts.on, "Esc で閉じた");
+  check(ws.document.querySelectorAll(".card").length === 2, "一覧は残っている");
+
+  console.log("\n=== /shorts のリンクから直接開く ===");
+  calls.length = 0;
+  const wu = await boot(false, "https://clipvault.example.ts.net/?t=X&mode=shorts&game=LoL");
+  await sleep(120);
+  check(wu.__state().shorts.on, "開いた直後にショート");
+  check(calls.some((c) => c.includes("sort=random") && c.includes("game=LoL")),
+        "ゲームの絞り込みが効いている");
+
+  console.log("\n=== ショートの同時視聴（追従側） ===");
+  await wu.applyView({ host_id: "9", host_name: "たいち", rev: 50,
+                       view: { shorts: 2, playing: true, position: 1 } });
+  await sleep(60);
+  st = wu.__state().shorts;
+  check(st.on && st.follow && st.cur === 2 && st.n === 1, "ホストのクリップ1本を映す");
+  await wu.applyView({ host_id: "9", host_name: "たいち", rev: 51, view: { openId: null } });
+  await sleep(40);
+  check(!wu.__state().shorts.on, "ホストが閉じたら閉じる");
 
   console.log(`\n${fail.length ? "NG: " + fail.join(" / ") : "DOM OK"}`);
   process.exit(fail.length ? 1 : 0);

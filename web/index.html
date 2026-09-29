@@ -276,6 +276,98 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
   font-size:11.5px;color:var(--muted);background:#0F161D}
 .sync{color:var(--teal)}
 
+
+/* ---------------------------------------------------------------- ショート */
+.shortsbtn{height:30px;padding:0 12px;border:1px solid var(--gold-dim);color:var(--gold);
+  font-size:12.5px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.shortsbtn:hover{background:#1E1A12;border-color:var(--gold)}
+.shorts{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column}
+.shorts[hidden]{display:none}
+.s-top{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;align-items:center;gap:10px;
+  padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.75),transparent);font-size:12.5px}
+.s-top b{font-family:"Cinzel",serif;letter-spacing:.16em;color:var(--gold);font-weight:600}
+.s-top .cond{color:#C9D3DC;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.s-top .spacer{margin-left:auto}
+.s-top button{padding:4px 10px;border:1px solid rgba(255,255,255,.22);color:#E8EEF3;font-size:12px;
+  background:rgba(0,0,0,.35);white-space:nowrap}
+.s-top button:hover{border-color:var(--gold)}
+.s-top button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold)}
+.s-top .x{font-size:15px;padding:2px 10px}
+.s-top .live{color:var(--teal);display:flex;align-items:center;gap:6px}
+.s-feed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;overscroll-behavior:contain;
+  scrollbar-width:none}
+.s-feed::-webkit-scrollbar{display:none}
+.slide{position:relative;height:100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;
+  overflow:hidden;background:#000}
+.s-bg{position:absolute;inset:-40px;background-size:cover;background-position:center;
+  filter:blur(28px) brightness(.35);transform:scale(1.1)}
+.s-media{position:absolute;inset:0;display:grid;place-items:center}
+.s-media img,.s-media video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent}
+.s-media video{z-index:1}
+.s-tap{position:absolute;inset:0;z-index:2}
+.s-paused{position:absolute;left:50%;top:50%;z-index:3;width:74px;height:74px;margin:-37px 0 0 -37px;
+  border-radius:50%;background:rgba(0,0,0,.5);display:none;place-items:center;font-size:28px;
+  pointer-events:none;color:#fff}
+.slide.paused .s-paused{display:grid}
+.s-burst{position:absolute;left:50%;top:50%;z-index:4;font-size:96px;color:var(--gold);
+  transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:none;text-shadow:0 4px 24px rgba(0,0,0,.6)}
+.s-burst.go{animation:burst .7s ease-out}
+@keyframes burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}
+  25%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}
+.s-cap{position:absolute;left:50%;bottom:150px;z-index:3;transform:translateX(-50%);max-width:min(86%,760px);
+  padding:5px 12px;background:rgba(0,0,0,.62);font-size:16px;line-height:1.5;text-align:center;
+  pointer-events:none;border-radius:3px}
+.s-cap:empty{display:none}
+.s-info{position:absolute;left:0;right:78px;bottom:0;z-index:3;padding:60px 16px 22px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(0,0,0,.8))}
+.s-info h2{font-size:17px;font-weight:700;line-height:1.35;margin-bottom:4px;text-shadow:0 1px 6px #000}
+.s-info .sub{color:#C9D3DC}
+.s-info .chips{margin-top:7px}
+.s-side{position:absolute;right:10px;bottom:34px;z-index:4;display:flex;flex-direction:column;gap:14px;align-items:center}
+.s-side button{display:flex;flex-direction:column;align-items:center;gap:2px;color:#fff;font-size:24px;line-height:1;
+  text-shadow:0 1px 6px rgba(0,0,0,.8)}
+.s-side button i{font-style:normal;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(0,0,0,.42)}
+.s-side button:hover i{background:rgba(0,0,0,.7)}
+.s-side button small{font-family:var(--mono);font-size:11px;color:#E8EEF3}
+.s-side button.on i{color:var(--gold)}
+.s-prog{position:absolute;left:0;right:0;bottom:0;z-index:5;height:12px;cursor:pointer;display:flex;align-items:flex-end}
+.s-prog i{display:block;height:3px;background:var(--gold);width:0}
+.s-prog:hover i{height:5px}
+.s-err{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);max-width:320px;
+  padding:14px 16px;background:rgba(10,16,21,.92);border-left:2px solid #C4433B;font-size:12.5px;color:#C9D3DC}
+.s-err b{display:block;color:var(--text);margin-bottom:8px}
+.s-err .errbtns{margin-top:8px}
+.s-end{display:grid;place-items:center;text-align:center;color:#C9D3DC}
+.s-end b{display:block;color:var(--text);font-size:18px;margin-bottom:8px}
+.s-end button{margin-top:16px;padding:8px 18px;border:1px solid var(--gold);color:var(--gold)}
+.s-sheet{position:absolute;z-index:8;left:0;right:0;bottom:0;height:58%;background:#0E151C;
+  border-top:2px solid var(--gold);display:flex;flex-direction:column;transform:translateY(102%);transition:transform .22s}
+.s-sheet.on{transform:none}
+.s-sheet-h{display:flex;border-bottom:1px solid var(--line)}
+.s-sheet-h button{flex:1;padding:11px 6px;font-size:12.5px;color:var(--muted);border-bottom:2px solid transparent}
+.s-sheet-h button[aria-selected="true"]{color:var(--gold);border-bottom-color:var(--gold)}
+.s-sheet-h .x{flex:0 0 48px}
+.s-sheet-b{flex:1;overflow-y:auto;padding:8px 12px}
+.s-compose{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.s-compose input{flex:1;height:34px;padding:0 10px;background:var(--surface-2);border:1px solid var(--line);outline:none}
+.s-compose input:focus{border-color:var(--gold-dim)}
+.s-hint{position:absolute;left:50%;top:64px;z-index:6;transform:translateX(-50%);padding:6px 14px;
+  background:rgba(0,0,0,.7);font-size:12.5px;border-radius:14px;cursor:pointer;white-space:nowrap}
+.s-hint[hidden]{display:none}
+body.following .shorts .s-feed,
+body.following .shorts .s-side,
+body.following .shorts .s-prog,
+body.following .shorts #s-auto,
+body.following .shorts #s-shuffle{pointer-events:none}
+body.following .shorts .s-side{opacity:.55}
+@media(min-width:1000px){
+  .s-sheet{left:auto;top:0;width:380px;height:auto;border-top:none;border-left:2px solid var(--gold);transform:translateX(102%)}
+  .s-sheet.on{transform:none}
+  .s-cap{bottom:120px}
+}
+
 @media(max-width:900px){aside{display:none}.pwrap{grid-template-columns:1fr}.pane{max-height:340px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -294,6 +386,7 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
     <option value="short">短い順</option>
   </select>
   <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
+  <button class="shortsbtn" id="shortsbtn" title="ランダムな順番でスワイプして次々見る">▶ ショート</button>
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
 </header>
 
@@ -360,6 +453,33 @@ mark{background:rgba(200,170,110,.24);color:var(--gold);padding:0 1px}
   </div>
 </main>
 
+
+<section class="shorts" id="shorts" hidden>
+  <div class="s-top" id="s-top">
+    <button class="x" id="s-close" title="閉じる (Esc)">✕</button>
+    <b>SHORTS</b>
+    <span class="cond" id="s-cond"></span>
+    <span class="spacer"></span>
+    <span id="s-sync"></span>
+    <button id="s-auto" title="終わったら自動で次へ">自動で次へ</button>
+    <button id="s-shuffle" title="シャッフルし直す">🔀</button>
+  </div>
+  <div class="s-hint" id="s-hint" hidden>🔇 タップで音声オン</div>
+  <div class="s-feed" id="s-feed"></div>
+  <div class="s-sheet" id="s-sheet">
+    <div class="s-sheet-h">
+      <button id="s-tab-t" aria-selected="true">文字起こし</button>
+      <button id="s-tab-c" aria-selected="false">コメント</button>
+      <button class="x" id="s-sheet-x" title="閉じる">✕</button>
+    </div>
+    <div class="s-sheet-b" id="s-sheet-b"></div>
+    <div class="s-compose" id="s-compose">
+      <input id="s-ctext" placeholder="コメントを書く（今の再生時刻つき）" autocomplete="off">
+      <button class="send" id="s-csend">送信</button>
+    </div>
+  </div>
+</section>
+
 <script>
 window.__CLIENT_ID__ = "%%CLIENT_ID%%";
 window.__CDN_PREFIX__ = "%%CDN_PREFIX%%";
@@ -399,7 +519,9 @@ const PAGE=36;
 async function boot(){
   try{ME=await API.get("/api/me")}catch(e){return fail()}
   $("who").textContent=ME.name;$("avme").textContent=ME.name[0];
-  await facets();reset();
+  const direct=shortsFromURL();
+  await facets();await reset();
+  if(direct)await openShorts();
 }
 function fail(){
   document.body.innerHTML=`<div style="margin:auto;padding:60px 24px;max-width:440px;text-align:center">
@@ -873,13 +995,14 @@ function myView(){
     position:vid?Math.round(vid.currentTime*10)/10:0,
     playing:!!(vid&&!vid.paused&&!vid.ended),
     scroll:Math.round(stage().scrollTop),
+    shorts:SH.on&&SH.cur?SH.cur.id:null,
   };
 }
 
 // 再生位置とスクロールは常に動くので、比較からは外して別扱いにする
 function viewKey(v){
   return JSON.stringify([v.query,v.sort,v.onlyFav,v.game,v.tag,v.by,
-                         v.loaded,v.openId]);
+                         v.loaded,v.openId,v.shorts]);
 }
 
 async function syncStart(asHost){
@@ -914,7 +1037,8 @@ async function syncStop(){
   syncRole="off";clearInterval(syncTimer);syncTimer=null;
   clearInterval(driftTimer);driftTimer=null;
   document.body.classList.remove("following");
-  if(vid){vid.controls=true;vid.playbackRate=1}
+  if(vid){vid.controls=!SH.on;vid.playbackRate=1}
+  if(SH.on){SH.follow=false;if(vid)vid.loop=!SH.auto;drawShortsTop()}
   drawSync();
 }
 
@@ -1015,14 +1139,21 @@ async function applyView(st){
       let guard=0;
       while(items.length<(v.loaded||0)&&!done&&guard++<10)await load();
 
-      // 2) 開いているクリップを合わせる
-      if(v.openId&&openId!==v.openId)await openClip(v.openId);
-      else if(!v.openId&&openId)closeClip();
+      // 2) ショートを見ているならそのクリップを映す
+      if(v.shorts)await shortsFollow(v.shorts);
+      else if(SH.on)closeShorts();
+
+      // 3) 開いているクリップを合わせる
+      if(!v.shorts){
+        if(v.openId&&openId!==v.openId)await openClip(v.openId);
+        else if(!v.openId&&openId)closeClip();
+      }
     }
 
     // 3) 再生位置。届いた値は「送られた時点」のものなので、
     //    そこからの経過時間を足さないと必ず遅れる。
-    if(vid&&v.openId===openId){
+    const myShort=SH.on&&SH.cur?SH.cur.id:null;
+    if(vid&&(v.shorts?v.shorts===myShort:(v.openId===openId&&!SH.on))){
       vid.controls=false;
       const target=(v.position||0)+(v.playing?(st.elapsed||0):0);
       const drift=vid.currentTime-target;
@@ -1046,6 +1177,7 @@ async function applyView(st){
 }
 
 function drawSync(){
+  if(SH.on)drawShortsTop();
   const bar=$("syncbar");
   if(!INSTANCE){bar.hidden=true;return}
   bar.hidden=false;
@@ -1093,11 +1225,459 @@ if(INSTANCE){
   },{passive:true});
 }
 
+// ---------------------------------------------------------------- ショート
+// クリップを縦に並べ、スワイプ（ホイール・↑↓キー）で1本ずつ切り替える。
+// 順番はシード付きのランダム。まだ見ていないクリップが先に来る。
+// 動画要素は「今の1本」と「次の1本（先読み）」だけ持ち、それ以外は捨てる。
+const SH={on:false,seed:0,start:"",items:[],offset:0,done:false,loading:false,
+  idx:-1,cur:null,auto:true,muted:false,caps:true,follow:false,
+  detail:new Map(),seen:new Set(),seenTimer:null,tapTimer:null,sheet:null};
+const SPAGE=10;
+try{
+  const a=localStorage.getItem("cv_shorts_auto");if(a!==null)SH.auto=a==="1";
+  const c=localStorage.getItem("cv_shorts_caps");if(c!==null)SH.caps=c==="1";
+}catch(e){}
+const feed=()=>$("s-feed");
+const slides=()=>[...feed().querySelectorAll(".slide[data-id]")];
+
+function shortsQS(){
+  const p=new URLSearchParams();
+  if(query)p.set("q",query);
+  if(onlyFav)p.set("fav","1");
+  if(filters.game)p.set("game",filters.game);
+  if(filters.tag)p.append("tag",filters.tag);
+  if(filters.by)p.set("by",filters.by);
+  p.set("sort","random");p.set("seed",String(SH.seed));
+  p.set("unseen","1");p.set("start",SH.start);
+  p.set("limit",String(SPAGE));p.set("offset",String(SH.offset));
+  return p.toString();
+}
+
+function drawShortsTop(){
+  const c=[filters.game&&"🎮 "+filters.game,filters.tag&&"#"+filters.tag,
+    filters.by&&"👤 "+filters.by,onlyFav&&"★ お気に入り",query&&`「${query}」`].filter(Boolean);
+  $("s-cond").textContent=c.length?c.join(" "):"すべてのクリップ";
+  $("s-auto").setAttribute("aria-pressed",SH.auto);
+  const sy=$("s-sync");
+  if(syncRole==="follow"){
+    sy.innerHTML=`<span class="live"><span class="dot"></span>${esc(syncState&&syncState.host_name||"?")} の画面</span>`;
+  }else if(syncRole==="host"){
+    sy.innerHTML=`<span class="live"><span class="dot"></span>共有中</span>`;
+  }else sy.innerHTML="";
+}
+
+async function openShorts(){
+  if(syncRole==="follow"&&!applying)return;
+  if(openId)closeClip();
+  SH.on=true;SH.follow=false;
+  $("shorts").hidden=false;
+  document.body.style.overflow="hidden";
+  await reshuffle();
+}
+
+async function reshuffle(){
+  SH.seed=Math.floor(Math.random()*2147483647);
+  SH.start=new Date().toISOString();
+  SH.items=[];SH.offset=0;SH.done=false;SH.idx=-1;SH.cur=null;
+  clearShortsVideos();
+  feed().innerHTML="";feed().scrollTop=0;
+  drawShortsTop();
+  await shortsLoad();
+  if(SH.items.length)await activate(0);
+  else feed().innerHTML=`<div class="slide s-end"><div><b>表示できるクリップがありません</b>
+    絞り込みを外してから開き直してください。</div></div>`;
+}
+
+function closeShorts(){
+  clearShortsVideos();
+  clearTimeout(SH.seenTimer);
+  SH.on=false;SH.cur=null;SH.idx=-1;
+  $("shorts").hidden=true;$("s-sheet").classList.remove("on");$("s-hint").hidden=true;
+  document.body.style.overflow="";
+  vid=null;
+  pushNow();
+}
+
+async function shortsLoad(){
+  if(SH.loading||SH.done)return;
+  SH.loading=true;
+  try{
+    const d=await API.get("/api/clips?"+shortsQS());
+    d.items.forEach(c=>{SH.items.push(c);feed().appendChild(slideFor(c))});
+    SH.offset+=d.items.length;
+    SH.done=!d.has_more;
+    if(SH.done&&SH.items.length){
+      const e=document.createElement("div");e.className="slide s-end";
+      e.innerHTML=`<div><b>全部見ました</b>${SH.items.length} 本のクリップを見終わりました。
+        <br><button id="s-again">🔀 シャッフルしてもう一周</button></div>`;
+      feed().appendChild(e);
+      e.querySelector("#s-again").onclick=reshuffle;
+    }
+  }catch(e){console.warn("[clipvault] ショートの読み込み失敗",e)}
+  finally{SH.loading=false}
+}
+
+function slideFor(c){
+  const el=document.createElement("div");
+  el.className="slide";el.dataset.id=c.id;
+  const th=SIGN(P()+c.thumb);
+  el.innerHTML=`<div class="s-bg" style="background-image:url('${th}')"></div>
+    <div class="s-media"><img src="${th}" alt="" loading="lazy"></div>
+    <div class="s-tap"></div><div class="s-paused">▶</div><div class="s-burst">★</div>
+    <div class="s-cap"></div>
+    <div class="s-info"><h2>${esc(c.title)}</h2>
+      <div class="sub">${esc(c.by)} · ${c.date} · ${mmss(c.duration)}</div>
+      <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
+        c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>
+    <div class="s-side">
+      <button class="s-fav${c.favorited?" on":""}" title="お気に入り (F)"><i>${c.favorited?"★":"☆"}</i><small>保存</small></button>
+      <button class="s-fire" title="🔥 リアクション"><i>🔥</i><small>${c.stars||0}</small></button>
+      <button class="s-talk" title="文字起こし・コメント"><i>💬</i><small>${Array.isArray(c.comments)?c.comments.length:(c.comments||0)}</small></button>
+      <button class="s-cc${SH.caps?" on":""}" title="字幕 (C)"><i>字</i><small>字幕</small></button>
+      <button class="s-mute" title="ミュート (M)"><i>${SH.muted?"🔇":"🔊"}</i><small>音</small></button>
+      <button class="s-dc" title="Discord で開く"><i>↗</i><small>元投稿</small></button>
+    </div>
+    <div class="s-prog"><i></i></div>`;
+  const tap=el.querySelector(".s-tap");
+  tap.onclick=e=>{
+    if(SH.tapTimer){clearTimeout(SH.tapTimer);SH.tapTimer=null;favFromTap(el,c);return}
+    SH.tapTimer=setTimeout(()=>{SH.tapTimer=null;togglePlay()},240);
+  };
+  el.querySelector(".s-fav").onclick=()=>shortsFav(c);
+  el.querySelector(".s-fire").onclick=()=>shortsFire(c,el);
+  el.querySelector(".s-talk").onclick=()=>openSheet("c");
+  el.querySelector(".s-cc").onclick=toggleCaps;
+  el.querySelector(".s-mute").onclick=toggleMute;
+  el.querySelector(".s-dc").onclick=()=>openOut(c.jump);
+  el.querySelector(".s-prog").onclick=e=>{
+    if(!vid||!vid.duration)return;
+    const r=e.currentTarget.getBoundingClientRect();
+    vid.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*vid.duration;
+  };
+  return el;
+}
+
+function openOut(url){
+  if(window.CV_ACTIVITY&&window.__discordSdk)window.__discordSdk.commands.openExternalLink({url});
+  else window.open(url,"_blank","noopener");
+}
+
+async function detailOf(id){
+  if(SH.detail.has(id))return SH.detail.get(id);
+  const p=API.get("/api/clips/"+id).catch(e=>{SH.detail.delete(id);throw e});
+  SH.detail.set(id,p);
+  return p;
+}
+
+function dropVideo(el){
+  const v=el.querySelector("video");
+  if(!v)return;
+  try{v.pause()}catch(e){}
+  v.removeAttribute("src");try{v.load()}catch(e){}
+  v.remove();
+}
+function clearShortsVideos(){
+  feed().querySelectorAll(".slide").forEach(dropVideo);
+}
+
+function makeVideo(el,d,active){
+  let v=el.querySelector("video");
+  if(!v){
+    v=document.createElement("video");
+    v.playsInline=true;v.preload=active?"auto":"metadata";
+    v.src=mediaSrc(d);
+    v.onerror=()=>{
+      if(window.CV_ACTIVITY&&mediaMode!=="stream"&&!NO_FALLBACK){
+        mediaMode="stream";v.src=streamSrc(d);v.load();
+        if(v===vid)v.play().catch(()=>{});
+        return;
+      }
+      if(v===vid)slideError(el,d,v);
+    };
+    v.onloadedmetadata=()=>{if(window.CV_ACTIVITY&&mediaMode===null)mediaMode="cdn"};
+    el.querySelector(".s-media").appendChild(v);
+  }
+  return v;
+}
+
+function slideError(el,d,v){
+  if(el.querySelector(".s-err"))return;
+  const box=document.createElement("div");box.className="s-err";
+  box.innerHTML=`<b>この環境では再生できませんでした</b>次のクリップへスワイプするか、元の投稿で再生してください。
+    <div class="errbtns"><button class="a">▶ Discord で再生</button>${
+      ME.browser_url?`<button class="b">🌐 ブラウザで開く</button>`:""}</div>`;
+  box.querySelector(".a").onclick=()=>openOut(d.jump);
+  const b=box.querySelector(".b");if(b)b.onclick=()=>openOut(ME.browser_url);
+  el.appendChild(box);
+  reportMedia(v,v.currentSrc||v.src,"shorts").catch(()=>{});
+  $("mediaerr").hidden=true;
+}
+
+async function activate(i){
+  const all=slides();
+  if(i<0||i===SH.idx)return;
+  if(i>=all.length){                     // 最後の「全部見ました」
+    SH.idx=i;SH.cur=null;
+    if(vid){try{vid.pause()}catch(e){}}
+    clearTimeout(SH.seenTimer);pushNow();
+    return;
+  }
+  SH.idx=i;
+  const el=all[i];
+  const id=Number(el.dataset.id);
+  all.forEach((s,j)=>{if(j!==i&&j!==i+1)dropVideo(s)});
+  if(vid&&vid.parentNode&&!el.contains(vid)){try{vid.pause()}catch(e){}}
+  clearTimeout(SH.seenTimer);
+
+  let d;
+  try{d=await detailOf(id)}catch(e){console.warn("[clipvault] 詳細の取得失敗",e);return}
+  if(SH.idx!==i)return;                 // 待っている間に次へ進んだ
+  SH.cur=d;
+  drawFire(el,d.reactions||{},d.discord_stars);
+  const v=makeVideo(el,d,true);
+  vid=v;
+  v.loop=!SH.auto||SH.follow;
+  v.muted=SH.muted;
+  v.ontimeupdate=()=>shortsTick(el,v);
+  v.onplay=()=>{el.classList.remove("paused");pushNow()};
+  v.onpause=()=>{el.classList.add("paused");pushNow()};
+  v.onseeked=pushNow;
+  v.onended=()=>{if(SH.auto&&!SH.follow&&syncRole!=="follow")go(1)};
+  if(!SH.follow&&syncRole!=="follow"){
+    try{v.currentTime=0}catch(e){}
+    await playWithSound(v);
+  }
+  // 3 秒見たら「見た」にする。すぐ飛ばしたものは次回も出てくる。
+  SH.seenTimer=setTimeout(()=>markSeen(id),3000);
+  if(SH.sheet)drawSheet();
+  pushNow();
+
+  // 次の1本を先読みする
+  const next=all[i+1];
+  if(next){
+    detailOf(Number(next.dataset.id)).then(nd=>{
+      if(SH.idx===i&&SH.on)makeVideo(next,nd,false);
+    }).catch(()=>{});
+  }
+  if(!SH.done&&i>=SH.items.length-3)shortsLoad();
+}
+
+async function playWithSound(v){
+  try{await v.play();$("s-hint").hidden=true;return}
+  catch(e){}
+  // 音声付きの自動再生が拒否された環境。消音で再生し、タップで戻せるようにする。
+  v.muted=true;SH.muted=true;drawMuteIcons();
+  try{await v.play()}catch(e){}
+  $("s-hint").hidden=false;
+}
+
+function markSeen(id){
+  if(SH.seen.has(id))return;
+  SH.seen.add(id);
+  API.send("POST",`/api/clips/${id}/seen`,{}).catch(()=>{});
+}
+
+function shortsTick(el,v){
+  const bar=el.querySelector(".s-prog i");
+  if(v.duration)bar.style.width=(v.currentTime/v.duration*100)+"%";
+  const cap=el.querySelector(".s-cap");
+  if(!SH.caps||!SH.cur||!SH.cur.segments){cap.textContent="";return}
+  const t=v.currentTime;
+  const s=SH.cur.segments.find(x=>t>=x.start&&t<=(x.end||x.start+3)+0.4);
+  const txt=s?s.text:"";
+  if(cap.textContent!==txt)cap.textContent=txt;
+  if(SH.sheet==="t")markSheetLine(t);
+}
+
+function go(d){
+  const i=Math.max(0,Math.min(SH.idx+d,feed().children.length-1));
+  const h=feed().clientHeight||1;
+  if(typeof feed().scrollTo==="function")feed().scrollTo({top:i*h,behavior:"smooth"});
+  else feed().scrollTop=i*h;
+  activate(i);
+}
+
+function togglePlay(){
+  if(!vid)return;
+  if(vid.paused)vid.play().catch(()=>{});else vid.pause();
+}
+
+function toggleMute(){
+  SH.muted=!SH.muted;
+  if(vid)vid.muted=SH.muted;
+  $("s-hint").hidden=true;
+  drawMuteIcons();
+}
+function drawMuteIcons(){
+  feed().querySelectorAll(".s-mute i").forEach(i=>i.textContent=SH.muted?"🔇":"🔊");
+}
+function toggleCaps(){
+  SH.caps=!SH.caps;
+  try{localStorage.setItem("cv_shorts_caps",SH.caps?"1":"0")}catch(e){}
+  feed().querySelectorAll(".s-cc").forEach(b=>b.classList.toggle("on",SH.caps));
+  if(!SH.caps)feed().querySelectorAll(".s-cap").forEach(c=>c.textContent="");
+}
+
+async function shortsFav(c){
+  const r=await API.send("POST",`/api/clips/${c.id}/favorite`,{});
+  c.favorited=r.favorited;favTotal=r.count;drawMyRail();
+  const el=feed().querySelector(`.slide[data-id="${c.id}"]`);
+  if(el){const b=el.querySelector(".s-fav");b.classList.toggle("on",r.favorited);
+    b.querySelector("i").textContent=r.favorited?"★":"☆"}
+  const g=items.find(x=>x.id===c.id);
+  if(g){g.favorited=r.favorited;const ce=cardEls.get(c.id);
+    if(ce){const f=ce.querySelector(".fav");f.classList.toggle("on",r.favorited);
+      f.textContent=r.favorited?"★":"☆"}}
+  return r.favorited;
+}
+
+function favFromTap(el,c){
+  const b=el.querySelector(".s-burst");
+  b.classList.remove("go");void b.offsetWidth;b.classList.add("go");
+  if(!c.favorited)shortsFav(c);       // ダブルタップは付けるだけ。外すのはボタンで
+}
+
+async function shortsFire(c,el){
+  const r=await API.send("POST",`/api/clips/${c.id}/reactions`,{emoji:"🔥"});
+  const d=await detailOf(c.id).catch(()=>null);
+  if(d)d.reactions=r.reactions;
+  drawFire(el,r.reactions,d?d.discord_stars:0);
+}
+function drawFire(el,reactions,discordStars){
+  const mine=(reactions["🔥"]||[]).some(u=>u.id===ME.id);
+  const n=(discordStars||0)+Object.values(reactions).reduce((a,us)=>a+us.length,0);
+  el.querySelector(".s-fire").classList.toggle("on",mine);
+  el.querySelector(".s-fire small").textContent=n;
+}
+
+function openSheet(k){
+  SH.sheet=k;$("s-sheet").classList.add("on");drawSheet();
+}
+function closeSheet(){SH.sheet=null;$("s-sheet").classList.remove("on")}
+function drawSheet(){
+  const d=SH.cur;if(!d||!SH.sheet)return;
+  $("s-tab-t").setAttribute("aria-selected",SH.sheet==="t");
+  $("s-tab-c").setAttribute("aria-selected",SH.sheet==="c");
+  $("s-tab-t").textContent=`文字起こし ${d.segments.length}`;
+  $("s-tab-c").textContent=`コメント ${d.comments.length}`;
+  $("s-compose").style.display=SH.sheet==="c"?"flex":"none";
+  const h=$("s-sheet-b");h.innerHTML="";
+  if(SH.sheet==="t"){
+    if(!d.segments.length){h.innerHTML=`<div class="none">${
+      d.has_transcript?"セリフは検出されませんでした。":"まだ文字起こしされていません。"}</div>`;return}
+    d.segments.forEach(s=>{const b=document.createElement("button");b.className="line";
+      b.innerHTML=`<time>${mmss(s.start)}</time><p>${esc(s.text)}</p>`;
+      b.onclick=()=>{if(vid){vid.currentTime=s.start;vid.play().catch(()=>{})}};
+      h.appendChild(b)});
+  }else{
+    if(!d.comments.length){h.innerHTML=`<div class="none">まだコメントはありません。</div>`;return}
+    d.comments.forEach(c=>{const x=document.createElement("div");x.className="cm";
+      x.innerHTML=`<span class="av">${esc(c.user[0])}</span><div class="cm-b">
+        <div class="cm-h"><strong>${esc(c.user)}</strong>${
+          c.at!=null?`<button class="jump">${mmss(c.at)}</button>`:""}
+        <span>${ago(c.created_at)}</span></div><p>${esc(c.body)}</p></div>`;
+      const j=x.querySelector(".jump");
+      if(j)j.onclick=()=>{if(vid){vid.currentTime=c.at;vid.play().catch(()=>{})}};
+      h.appendChild(x)});
+  }
+}
+function markSheetLine(t){
+  const d=SH.cur;if(!d)return;
+  let idx=-1;d.segments.forEach((s,i)=>{if(t>=s.start)idx=i});
+  [...$("s-sheet-b").children].forEach((el,i)=>el.classList&&el.classList.toggle("now",i===idx));
+}
+async function shortsComment(){
+  const v=$("s-ctext").value.trim();const d=SH.cur;
+  if(!v||!d)return;
+  $("s-csend").disabled=true;
+  try{
+    const at=vid?Math.floor(vid.currentTime):null;
+    const r=await API.send("POST",`/api/clips/${d.id}/comments`,{body:v,at});
+    d.comments.push({id:r.id,user:ME.name,user_id:ME.id,at,body:v,
+      created_at:new Date().toISOString()});
+    d.comments.sort((a,b)=>(a.at??1e9)-(b.at??1e9));
+    $("s-ctext").value="";drawSheet();
+    const el=feed().querySelector(`.slide[data-id="${d.id}"] .s-talk small`);
+    if(el)el.textContent=d.comments.length;
+  }finally{$("s-csend").disabled=false}
+}
+
+// 追従中はホストが見ているクリップ1本だけを映す
+async function shortsFollow(id){
+  if(!SH.on){
+    if(openId)closeClip();
+    SH.on=true;$("shorts").hidden=false;document.body.style.overflow="hidden";
+  }
+  SH.follow=true;
+  drawShortsTop();
+  if(SH.cur&&SH.cur.id===id&&vid)return;
+  clearShortsVideos();feed().innerHTML="";SH.items=[];SH.idx=-1;SH.done=true;
+  let d;
+  try{d=await detailOf(id)}catch(e){return}
+  SH.items=[d];feed().appendChild(slideFor(d));
+  await activate(0);
+}
+
+let scrollT=null;
+feed().addEventListener("scroll",()=>{
+  clearTimeout(scrollT);
+  scrollT=setTimeout(()=>{
+    const h=feed().clientHeight||1;
+    const i=Math.round(feed().scrollTop/h);
+    if(i!==SH.idx)activate(i);
+  },90);
+},{passive:true});
+
+$("shortsbtn").onclick=openShorts;
+$("s-close").onclick=()=>{if(syncRole==="follow")return;closeShorts()};
+$("s-shuffle").onclick=reshuffle;
+$("s-auto").onclick=()=>{
+  SH.auto=!SH.auto;
+  try{localStorage.setItem("cv_shorts_auto",SH.auto?"1":"0")}catch(e){}
+  if(vid&&SH.on)vid.loop=!SH.auto;
+  drawShortsTop();
+};
+$("s-hint").onclick=()=>{SH.muted=true;toggleMute()};
+$("s-tab-t").onclick=()=>openSheet("t");
+$("s-tab-c").onclick=()=>openSheet("c");
+$("s-sheet-x").onclick=closeSheet;
+$("s-csend").onclick=shortsComment;
+$("s-ctext").onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();shortsComment()}};
+
+function shortsKey(e){
+  if(/INPUT|TEXTAREA/.test(document.activeElement.tagName)){
+    if(e.key==="Escape")document.activeElement.blur();
+    return;
+  }
+  if(syncRole==="follow")return;
+  const k=e.key;
+  if(k==="ArrowDown"||k==="j"||k==="PageDown"){e.preventDefault();go(1)}
+  else if(k==="ArrowUp"||k==="k"||k==="PageUp"){e.preventDefault();go(-1)}
+  else if(k===" "){e.preventDefault();togglePlay()}
+  else if(k==="m")toggleMute();
+  else if(k==="c")toggleCaps();
+  else if(k==="f"&&SH.cur){const it=SH.items.find(x=>x.id===SH.cur.id);if(it)shortsFav(it)}
+  else if(k==="ArrowRight"&&vid)vid.currentTime=Math.min((vid.duration||0),vid.currentTime+5);
+  else if(k==="ArrowLeft"&&vid)vid.currentTime=Math.max(0,vid.currentTime-5);
+  else if(k==="Escape"){if(SH.sheet)closeSheet();else closeShorts()}
+}
+
+// /shorts コマンドのリンク（?mode=shorts&game=...）から直接開く
+function shortsFromURL(){
+  const u=new URLSearchParams(location.search);
+  if(u.get("mode")!=="shorts")return false;
+  filters={game:u.get("game")||null,tag:u.get("tag")||null,by:u.get("by")||null};
+  onlyFav=u.get("fav")==="1";
+  return true;
+}
+
 $("home").onclick=goHome;
 
 // 状態の外部公開。テストと不具合報告のためだけに使う。
 window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
-  items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState});
+  items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState,
+  shorts:{on:SH.on,idx:SH.idx,cur:SH.cur?SH.cur.id:null,n:SH.items.length,
+          done:SH.done,seed:SH.seed,follow:SH.follow}});
 
 $("more").onclick=()=>{if(!done)load()};
 $("back").onclick=closeClip;
@@ -1125,6 +1705,7 @@ window.addEventListener("resize",()=>{
 document.addEventListener("click",()=>
   document.querySelectorAll(".tbox.on,.picker.on").forEach(x=>x.classList.remove("on")));
 document.addEventListener("keydown",e=>{
+  if(SH.on)return shortsKey(e);
   const f=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
   if(e.key==="Escape"&&openId)closeClip();
   if(e.key==="/"&&!f){e.preventDefault();$("q").focus()}

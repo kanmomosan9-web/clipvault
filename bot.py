@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlencode
 
 import discord
 from discord import app_commands
@@ -20,7 +21,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-08-22g (drift compensation)"
+BUILD = "2026-09-29a (shorts feed)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -100,6 +101,14 @@ async def ingest_message(message: discord.Message) -> list[int]:
             db.add_tags(clip_id, [m.display_name], category="player")
             auto.append(m.display_name)
 
+        # 本文の #タグ と、残りの文章をタイトルとして取り込む
+        said = media.parse_message(message.content)
+        if said["tags"]:
+            db.add_tags(clip_id, said["tags"])
+            auto += said["tags"]
+        if said["title"]:
+            db.update_clip(clip_id, title=said["title"])
+
         db.reindex(clip_id)
         if config.AUTO_TRANSCRIBE:
             db.enqueue(clip_id)
@@ -157,6 +166,8 @@ async def on_message(message: discord.Message):
         return
     if message.author.bot:
         return
+    if await tag_by_reply(message):
+        return
     if message.channel.id in config.STORAGE_CHANNEL_IDS:
         ids = await ingest_message(message)
         if ids:
@@ -169,6 +180,51 @@ async def on_message(message: discord.Message):
             except discord.HTTPException as e:
                 log.warning("add_reaction failed: %s", e)
     await bot.process_commands(message)
+
+
+async def apply_message_tags(message: discord.Message, clip_id: int) -> list[str]:
+    """本文の #タグ とタイトルをクリップに反映する。"""
+    said = media.parse_message(message.content)
+    if said["tags"]:
+        db.add_tags(clip_id, said["tags"])
+    if said["title"]:
+        db.update_clip(clip_id, title=said["title"])
+    return said["tags"]
+
+
+async def tag_by_reply(message: discord.Message) -> bool:
+    """クリップへの返信に #タグ が付いていたら、そのクリップに足す。
+
+    投稿し忘れたタグを後から足せるようにするため。
+    """
+    ref = message.reference
+    if ref is None or ref.message_id is None:
+        return False
+    clip = db.clip_by_message(ref.message_id)
+    if clip is None:
+        return False
+    said = media.parse_message(message.content)
+    if not said["tags"]:
+        return False
+    db.add_tags(clip["id"], said["tags"])
+    log.info("reply tags -> clip %s: %s", clip["id"], said["tags"])
+    try:
+        await message.add_reaction("🏷")
+    except discord.HTTPException:
+        pass
+    return True
+
+
+@bot.event
+async def on_message_edit(before: discord.Message, after: discord.Message):
+    """投稿を編集したらタグとタイトルを付け直す。"""
+    if after.author.bot or before.content == after.content:
+        return
+    clip = db.clip_by_message(after.id)
+    if clip is None:
+        return
+    tags = await apply_message_tags(after, clip["id"])
+    log.info("edit -> clip %s: %s", clip["id"], tags or "(タグなし)")
 
 
 async def _sync_reactions(message_id: int, channel_id: int) -> bool:
@@ -839,6 +895,78 @@ async def cmd_library(interaction: discord.Interaction):
     view = discord.ui.View()
     view.add_item(discord.ui.Button(label="ライブラリを開く", url=url, style=discord.ButtonStyle.link))
     await interaction.response.send_message(embed=e, view=view, ephemeral=True)
+
+
+@bot.tree.command(name="shorts", description="クリップをショート動画のようにスワイプで次々見ます（ランダム順）")
+@app_commands.describe(game="ゲームで絞る", tag="タグで絞る", member="投稿した人で絞る",
+                       favorites="自分のお気に入りだけにする")
+async def cmd_shorts(interaction: discord.Interaction, game: str = "", tag: str = "",
+                     member: str = "", favorites: bool = False):
+    if not (config.WEB_ENABLED and config.PUBLIC_URL):
+        await interaction.response.send_message(
+            "Web ライブラリが無効か、`PUBLIC_URL` が未設定です。", ephemeral=True)
+        return
+
+    token = webui.new_token()
+    db.issue_token(token, interaction.user.id, interaction.user.display_name,
+                   interaction.guild_id or 0, days=config.WEB_TOKEN_DAYS)
+    params = {"t": token, "mode": "shorts"}
+    if game:
+        params["game"] = game
+    if tag:
+        params["tag"] = tag
+    if member:
+        params["by"] = member
+    if favorites:
+        params["fav"] = "1"
+    url = f"{config.PUBLIC_URL}/?{urlencode(params)}"
+
+    cond = [f"🎮 {game}" if game else "", f"#{tag}" if tag else "",
+            f"👤 {member}" if member else "", "★ お気に入り" if favorites else ""]
+    cond = " ".join(c for c in cond if c) or "すべてのクリップ"
+    e = discord.Embed(
+        title="📱 ショート",
+        description=("ランダムな順番でクリップが流れてきます。\n"
+                     "上下にスワイプ（PCはホイール・↑↓キー）で次へ。"
+                     "ダブルタップでお気に入り。\n"
+                     "まだ見ていないクリップから先に出てきます。"),
+        colour=0xC8AA6E)
+    e.add_field(name="対象", value=cond, inline=False)
+    e.set_footer(text="このリンクはあなた専用です。他の人には共有しないでください。")
+
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="▶ ショートを開く", url=url,
+                                    style=discord.ButtonStyle.link))
+    await interaction.response.send_message(embed=e, view=view, ephemeral=True)
+
+
+@cmd_shorts.autocomplete("game")
+async def shorts_game_autocomplete(interaction: discord.Interaction, current: str):
+    cur = db.normalize_tag(current)
+    rows = db.connect().execute(
+        "SELECT display, use_count FROM tags WHERE category = 'game' AND name LIKE ? "
+        "AND use_count > 0 ORDER BY use_count DESC LIMIT 25", (f"%{cur}%",)).fetchall()
+    return [app_commands.Choice(name=f"{r['display']} ({r['use_count']})", value=r["display"])
+            for r in rows]
+
+
+@cmd_shorts.autocomplete("tag")
+async def shorts_tag_autocomplete(interaction: discord.Interaction, current: str):
+    cur = db.normalize_tag(current)
+    rows = db.connect().execute(
+        "SELECT display, use_count FROM tags WHERE category != 'game' AND name LIKE ? "
+        "AND use_count > 0 ORDER BY use_count DESC LIMIT 25", (f"%{cur}%",)).fetchall()
+    return [app_commands.Choice(name=f"#{r['display']} ({r['use_count']})", value=r["display"])
+            for r in rows]
+
+
+@cmd_shorts.autocomplete("member")
+async def shorts_member_autocomplete(interaction: discord.Interaction, current: str):
+    rows = db.connect().execute(
+        "SELECT uploader_name, COUNT(*) n FROM clips WHERE uploader_name LIKE ? "
+        "GROUP BY uploader_name ORDER BY n DESC LIMIT 25", (f"%{current}%",)).fetchall()
+    return [app_commands.Choice(name=f"{r['uploader_name']} ({r['n']})",
+                                value=r["uploader_name"]) for r in rows]
 
 
 @bot.tree.command(name="stats", description="ライブラリの統計を表示します")

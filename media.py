@@ -71,6 +71,41 @@ def parse_filename(name: str) -> dict:
     return {"game": "", "recorded_at": None, "title": cleaned[:80]}
 
 
+# Discord の特殊記法。#タグの検出前に取り除く。
+# <#123> はチャンネル、<@123> はユーザー、<:name:id> は絵文字。
+_MARKUP = re.compile(r"<a?[@#&:!][^>]{0,80}>")
+_URL = re.compile(r"https?://\S+")
+# タグの区切り。全角の # と、句読点や括弧で終わる書き方に対応する。
+_TAG = re.compile(r"[#＃]([^\s#＃、,。．!?！？()（）\[\]「」]+)")
+
+
+def parse_message(content: str) -> dict:
+    """クリップに添えられた本文から、タグとタイトルを取り出す。
+
+        「ペンタキル取った #LoL #神プレイ」
+          -> title="ペンタキル取った", tags=["LoL", "神プレイ"]
+    """
+    if not content:
+        return {"title": "", "tags": []}
+    text = _URL.sub(" ", _MARKUP.sub(" ", content))
+
+    tags, seen = [], set()
+    for m in _TAG.finditer(text):
+        t = m.group(1).strip("_-・")
+        key = t.lower()
+        if not t or key in seen:
+            continue
+        seen.add(key)
+        tags.append(t[:40])
+
+    title = _TAG.sub(" ", text)
+    # タグを抜いたあとに残る孤立した区切り記号を掃除する
+    title = re.sub(r"\s+([、,。．]+)", r"\1", title)
+    title = re.sub(r"[、,。．]+\s*$", "", title)
+    title = re.sub(r"\s+", " ", title).strip(" 　\n\t-–—|/、,。．")
+    return {"title": title[:100], "tags": tags[:20]}
+
+
 def probe(src: str) -> dict:
     cmd = [
         "ffprobe", "-v", "error", "-print_format", "json",

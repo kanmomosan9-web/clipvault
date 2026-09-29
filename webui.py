@@ -141,10 +141,21 @@ def add_routes(app: web.Application, client) -> None:
         if by and uploader_id is None:
             return web.json_response({"total": 0, "items": []})
 
+        # ショート用のシャッフル。seed が同じなら順番も同じなので、
+        # 続きを読み込んでも重複しない。
+        try:
+            seed = int(request.query.get("seed", 0))
+        except ValueError:
+            seed = 0
         rows, total = db.query_clips(query=q, tag_ids=tag_ids,
                                      uploader_id=uploader_id,
                                      favorite_of=fav_of if only_fav else None,
-                                     sort=sort, offset=offset, limit=limit)
+                                     sort=sort, offset=offset, limit=limit,
+                                     seed=seed,
+                                     unseen_first_of=(fav_of if sort == "random"
+                                                      and request.query.get("unseen") == "1"
+                                                      else None),
+                                     seen_before=request.query.get("start", "")[:40])
 
         rcount, ccount = db.reaction_counts(), db.comment_counts()
         favs = db.favorite_ids(fav_of)
@@ -201,9 +212,10 @@ def add_routes(app: web.Application, client) -> None:
                   db.connect().execute(
                       "SELECT uploader_name, COUNT(*) n FROM clips "
                       "GROUP BY uploader_name ORDER BY n DESC")]
+        me_id = request["user"]["user_id"]
         return web.json_response({"games": games, "tags": tags, "members": people,
-                                  "favorites": db.favorite_count(
-                                      request["user"]["user_id"])})
+                                  "favorites": db.favorite_count(me_id),
+                                  "seen": db.seen_count(me_id)})
 
     # ------------------------------------------------------------ mutations
     async def set_tags(request):
@@ -314,6 +326,13 @@ def add_routes(app: web.Application, client) -> None:
         added = db.toggle_favorite(cid, me_id)
         return web.json_response({"favorited": added,
                                   "count": db.favorite_count(me_id)})
+
+    async def seen(request):
+        cid = int(request.match_info["id"])
+        if db.get_clip(cid) is None:
+            return web.json_response({"error": "not found"}, status=404)
+        db.mark_seen(cid, request["user"]["user_id"])
+        return web.json_response({"ok": True})
 
     # ------------------------------------------------------------ 同時視聴
     def _inst(request) -> str:
@@ -458,6 +477,7 @@ def add_routes(app: web.Application, client) -> None:
     r.add_delete("/api/comments/{id}", require_user(delete_comment))
     r.add_post("/api/clips/{id}/reactions", require_user(react))
     r.add_post("/api/clips/{id}/favorite", require_user(favorite))
+    r.add_post("/api/clips/{id}/seen", require_user(seen))
     r.add_post("/api/log", require_user(client_log))
     r.add_get("/api/session/{inst}", require_user(session_get))
     r.add_post("/api/session/{inst}/host", require_user(session_host))

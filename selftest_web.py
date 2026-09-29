@@ -167,6 +167,42 @@ async def main():
         assert (await (await cli.get("/api/clips?fav=1",
                 headers={"X-ClipVault-Token": tok2})).json())["total"] == 0
 
+        # ---------------------------------------------------- ショート
+        async def feed(seed, offset=0, limit=2, extra=""):
+            rr = await get(f"/api/clips?sort=random&seed={seed}&unseen=1"
+                           f"&start=2999-01-01&limit={limit}&offset={offset}{extra}")
+            return await rr.json()
+
+        whole = await feed(7, 0, 100)
+        ids = [c["id"] for c in whole["items"]]
+        again = [c["id"] for c in (await feed(7, 0, 100))["items"]]
+        other = [c["id"] for c in (await feed(8, 0, 100))["items"]]
+        pages = []
+        off = 0
+        while True:
+            d = await feed(7, off, 2)
+            pages += [c["id"] for c in d["items"]]
+            off += len(d["items"])
+            if not d["has_more"]:
+                break
+        print("ショート: 順番         ->", ids, "| 別シード:", other)
+        assert ids == again, "同じシードで順番が変わった"
+        assert sorted(ids) == sorted(other) and len(set(ids)) == len(ids) == whole["total"]
+        assert pages == ids, "ページ送りで重複・抜けが出た"
+
+        r = await send("POST", f"/api/clips/{ids[0]}/seen", {})
+        assert r.status == 200
+        after = [c["id"] for c in (await feed(7, 0, 100))["items"]]
+        print("既読にした後           ->", after, f"({ids[0]} が最後に回る)")
+        assert after[-1] == ids[0] and after[:-1] == [i for i in ids if i != ids[0]]
+
+        d = await (await get("/api/clips?sort=random&seed=7&unseen=1&start=2000-01-01&limit=100")).json()
+        assert [c["id"] for c in d["items"]] == ids, "開いた後に見たものは並びを変えない"
+        f2 = await (await get("/api/facets")).json()
+        assert f2["seen"] == 1
+        r = await send("POST", "/api/clips/99999/seen", {})
+        assert r.status == 404
+
         r = await send("POST", "/api/log",
                        {"tag": "media", "detail": {"errorCode": 4}})
         print("POST /api/log         ->", r.status, "(サーバーログに残る)")

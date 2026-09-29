@@ -8,7 +8,7 @@ import sys
 
 EXPECTED = {
     "clips", "search", "scan", "resync", "transcribe", "jobs",
-    "library", "stats", "tagdelete", "alias",
+    "library", "shorts", "stats", "tagdelete", "alias",
 }
 
 

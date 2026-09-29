@@ -1,4 +1,5 @@
 import json
+import hashlib
 import re
 import sqlite3
 import unicodedata
@@ -84,6 +85,14 @@ CREATE TABLE IF NOT EXISTS favorites (
 
 CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS seen (
+    user_id  INTEGER NOT NULL,
+    clip_id  INTEGER NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+    seen_at  TEXT    NOT NULL,
+    times    INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (user_id, clip_id)
+);
+
 CREATE TABLE IF NOT EXISTS webhooks (
     channel_id INTEGER PRIMARY KEY,
     webhook_id INTEGER NOT NULL,
@@ -130,6 +139,15 @@ CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
 """
 
 
+def _shuffle_key(clip_id, seed) -> int:
+    """シード付きの並び替えキー。同じシードなら毎回同じ順番になる。
+
+    ページ送りしても順番が崩れず、重複も抜けも出ない。
+    """
+    h = hashlib.blake2b(f"{seed}:{clip_id}".encode(), digest_size=7)
+    return int.from_bytes(h.digest(), "big")
+
+
 def connect() -> sqlite3.Connection:
     global _conn
     if _conn is None:
@@ -137,6 +155,7 @@ def connect() -> sqlite3.Connection:
         _conn.row_factory = sqlite3.Row
         _conn.execute("PRAGMA journal_mode=WAL")
         _conn.execute("PRAGMA foreign_keys=ON")
+        _conn.create_function("shuffle_key", 2, _shuffle_key, deterministic=True)
         _conn.executescript(SCHEMA)
         _conn.commit()
         _migrate(_conn)
@@ -473,6 +492,9 @@ def query_clips(
     sort: str = "new",
     offset: int = 0,
     limit: int = 9,
+    seed: int = 0,
+    unseen_first_of: Optional[int] = None,
+    seen_before: str = "",
 ) -> tuple[list[sqlite3.Row], int]:
     c = connect()
     where, params = ["1=1"], []
@@ -510,10 +532,22 @@ def query_clips(
 
     clause = " AND ".join(where)
     total = c.execute(f"SELECT COUNT(*) n FROM clips c WHERE {clause}", params).fetchone()["n"]
-    order = SORTS.get(sort, SORTS["new"])[0]
+    order_params: list = []
+    if sort == "random":
+        # まだ見ていないものを先に、その中はシードでシャッフル。
+        # 「見た」の判定はフィードを開いた時刻で固定する。
+        # 見ている最中に並びが変わると、ページ送りで重複や抜けが出るため。
+        order = "shuffle_key(c.id, ?)"
+        order_params = [seed]
+        if unseen_first_of:
+            order = ("CASE WHEN c.id IN (SELECT clip_id FROM seen WHERE user_id = ? "
+                     "AND seen_at < ?) THEN 1 ELSE 0 END, " + order)
+            order_params = [unseen_first_of, seen_before or "9999", seed]
+    else:
+        order = SORTS.get(sort, SORTS["new"])[0]
     rows = c.execute(
         f"SELECT c.* FROM clips c WHERE {clause} ORDER BY {order} LIMIT ? OFFSET ?",
-        (*params, limit, offset),
+        (*params, *order_params, limit, offset),
     ).fetchall()
     return rows, total
 
@@ -607,6 +641,21 @@ def toggle_favorite(clip_id: int, user_id: int) -> bool:
               (clip_id, user_id, datetime.now(timezone.utc).isoformat()))
     c.commit()
     return True
+
+
+def mark_seen(clip_id: int, user_id: int) -> None:
+    c = connect()
+    c.execute(
+        "INSERT INTO seen (user_id, clip_id, seen_at) VALUES (?, ?, ?) "
+        "ON CONFLICT(user_id, clip_id) DO UPDATE SET "
+        "seen_at = excluded.seen_at, times = times + 1",
+        (user_id, clip_id, datetime.now(timezone.utc).isoformat()))
+    c.commit()
+
+
+def seen_count(user_id: int) -> int:
+    return connect().execute(
+        "SELECT COUNT(*) n FROM seen WHERE user_id = ?", (user_id,)).fetchone()["n"]
 
 
 def favorite_ids(user_id: int) -> set[int]:
