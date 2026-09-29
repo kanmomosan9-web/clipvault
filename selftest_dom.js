@@ -59,6 +59,7 @@ function fakeFetch(url, init) {
   if (u.includes("/api/me")) return json({ id: "4242", name: "つるかん",
     browser_url: "https://clipvault.example.ts.net/?t=TOK" });
   if (u.includes("/api/log")) return json({ ok: true });
+  if (u.includes("/api/version")) return json({ v: "999" });
   if (u.includes("/api/session/")) return json({ host_id: null, host_name: "",
     is_host: false, view: {}, rev: 0, tick: 0, elapsed: 0, watchers: ["つるかん"] });
   if (u.includes("/api/facets")) return json(FACETS);
@@ -88,7 +89,8 @@ const check = (cond, label) => {
 async function boot(activity, url, opts) {
   opts = opts || {};
   let html = fs.readFileSync(path.join(__dirname, "web", "index.html"), "utf8");
-  html = html.replace("%%CLIENT_ID%%", "123").replace("%%CDN_PREFIX%%", "/.proxy/cdn");
+  html = html.replace("%%CLIENT_ID%%", "123").replace("%%CDN_PREFIX%%", "/.proxy/cdn")
+             .replace("%%UI_VERSION%%", "100");
   // boot.js はモジュールなので jsdom では読ませず、ブラウザ相当で起動する
   html = html.replace(/<script type="module"[^>]*><\/script>/, "");
 
@@ -281,7 +283,7 @@ async function boot(activity, url, opts) {
   check(ws.document.querySelector("#s-feed .s-end") !== null, "最後に『全部見ました』");
   const v0 = sl[0].querySelector("video");
   check(!!v0 && v0.getAttribute("src") === "/media/1", "1本目の動画");
-  check(!!sl[1].querySelector("video"), "2本目を先読みしている");
+  check(ws.__state().shorts.preload === "/media/2", "2本目を先読みしている");
   check(sl[0].querySelector(".s-cap") !== null, "字幕の枠");
 
   ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
@@ -289,7 +291,10 @@ async function boot(activity, url, opts) {
   st = ws.__state().shorts;
   check(st.idx === 1 && st.cur === 2, "↓キーで次へ");
   check(!sl[0].querySelector("video"), "前の動画は破棄された");
-  check(!!sl[1].querySelector("video"), "2本目が再生対象");
+  const v1 = sl[1].querySelector("video");
+  check(!!v1, "2本目が再生対象");
+  check(v1 === v0, "同じ video 要素を使い回している（音の許可が引き継がれる）");
+  check(v1.getAttribute("src") === "/media/2", "src が 2 本目に替わった");
 
   // ダブルタップでお気に入り
   calls.length = 0;
@@ -317,6 +322,37 @@ async function boot(activity, url, opts) {
   // 3 秒で「見た」になる
   await sleep(3100);
   check(calls.some((c) => c.includes("/api/clips/2/seen")), "3秒見たら既読を送る");
+
+  console.log("\n=== ショートの音 ===");
+  // 音ありの自動再生が拒否される環境を再現する
+  const realPlay = ws.HTMLMediaElement.prototype.play;
+  let blocked = true;
+  ws.HTMLMediaElement.prototype.play = function () {
+    return blocked && !this.muted ? Promise.reject(new Error("NotAllowedError"))
+                                  : Promise.resolve();
+  };
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowUp" }));
+  await sleep(80);
+  st = ws.__state().shorts;
+  check(st.idx === 0 && st.autoMuted && !st.muted, "拒否されたら一時的に消音（自分の消音とは別）");
+  check(!$s("s-hint").hidden, "『タップで音声オン』が出る");
+  blocked = false;
+  sl[0].querySelector(".s-tap").dispatchEvent(new ws.Event("pointerup", { bubbles: true }));
+  await sleep(20);
+  check(!ws.__state().shorts.autoMuted && !v0.muted, "画面に触れたら音が戻る");
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
+  await sleep(80);
+  check(!v0.muted && !ws.__state().shorts.autoMuted, "スワイプ後も音ありのまま");
+  sl[1].querySelector(".s-mute").onclick();
+  check(v0.muted && ws.__state().shorts.muted, "🔊 ボタンで自分で消音");
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowUp" }));
+  await sleep(80);
+  check(v0.muted, "自分で消音にしたら次のクリップも消音");
+  sl[0].querySelector(".s-mute").onclick();
+  check(!v0.muted, "もう一度押すと音が戻る");
+  ws.HTMLMediaElement.prototype.play = realPlay;
+  ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
+  await sleep(60);
 
   ws.document.dispatchEvent(new ws.KeyboardEvent("keydown", { key: "ArrowDown" }));
   await sleep(60);
@@ -419,6 +455,9 @@ async function boot(activity, url, opts) {
   wb.document.getElementById("install").onclick();
   check(!wb.document.getElementById("howto").hidden, "追加のしかたを案内する");
   check(!!wb.document.querySelector('link[rel="manifest"]'), "manifest を読み込む");
+  check(wb.document.getElementById("update").hidden, "最初は更新のお知らせを出さない");
+  await wb.checkUpdate();
+  check(!wb.document.getElementById("update").hidden, "サーバー側が新しくなったら知らせる");
   wb.close();
 
   const wsa = await boot(false, "https://cv.example.ts.net/?source=app",

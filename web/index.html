@@ -439,6 +439,11 @@ body.dc-mobile .s-top .spacer{display:none}
   .s-top{padding-top:calc(10px + env(safe-area-inset-top,0px))}
   .shorts .s-hint{top:calc(64px + env(safe-area-inset-top,0px))}
 }
+.update{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:60;
+  transform:translateX(-50%);padding:9px 16px;background:#1E1A12;border:1px solid var(--gold);
+  color:var(--gold);font-size:13px;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.update[hidden]{display:none}
+@media(min-width:901px){.update{bottom:24px}}
 .login-btn{display:inline-block;margin-top:18px;padding:11px 22px;background:#5865F2;color:#fff;
   border-radius:4px;font-size:14px;text-decoration:none}
 
@@ -473,6 +478,7 @@ body.dc-mobile .s-top .spacer{display:none}
 </div>
 
 <div class="syncbar" id="syncbar" hidden></div>
+<button class="update" id="update" hidden>新しいバージョンがあります・タップで更新</button>
 
 <main>
   <aside>
@@ -572,6 +578,7 @@ body.dc-mobile .s-top .spacer{display:none}
 <script>
 window.__CLIENT_ID__ = "%%CLIENT_ID%%";
 window.__CDN_PREFIX__ = "%%CDN_PREFIX%%";
+window.__UI_VERSION__ = "%%UI_VERSION%%";
 const P = () => window.CV_PREFIX || "";
 const AUTH = () => window.CV_TOKEN ? {"X-ClipVault-Token": window.CV_TOKEN} : {};
 // <img> や <video> はカスタムヘッダーを送れないので、トークンはクエリで渡す。
@@ -662,6 +669,21 @@ $("install").onclick=async()=>{
   h.hidden=!h.hidden;
 };
 $("logout").onclick=()=>{location.href=P()+"/logout"};
+
+// ホーム画面から開いたアプリは閉じずに使い続けがちなので、
+// 画面に戻ってきたときに更新の有無を確かめて知らせる（勝手に再読み込みはしない）。
+async function checkUpdate(){
+  const mine=window.__UI_VERSION__;
+  if(!/^\d+$/.test(mine||""))return;
+  try{
+    const r=await fetch(P()+"/api/version",{cache:"no-store"});
+    const {v}=await r.json();
+    if(v&&v!==mine)$("update").hidden=false;
+  }catch(e){}
+}
+$("update").onclick=()=>location.reload();
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkUpdate()});
+setInterval(checkUpdate,10*60*1000);
 function fail(){
   // ブラウザ版は Discord でログインし直せる。戻り先は今のページ（トークンは除く）。
   const u=new URL(location.href);u.searchParams.delete("t");
@@ -1513,35 +1535,49 @@ async function detailOf(id){
   return p;
 }
 
-function dropVideo(el){
-  const v=el.querySelector("video");
-  if(!v)return;
-  try{v.pause()}catch(e){}
-  v.removeAttribute("src");try{v.load()}catch(e){}
-  v.remove();
-}
-function clearShortsVideos(){
-  feed().querySelectorAll(".slide").forEach(dropVideo);
+// 再生には 1 つの <video> を使い回し、スライド間で移動させる。
+// スマホのブラウザは「音ありの再生」を要素ごとに許可するため、
+// 毎回新しい要素を作るとスワイプのたびに消音に戻されてしまう。
+// 一度タップで音を出した要素は、その後 src を替えても音ありで再生できる。
+function currentSlide(){return SH.idx>=0?slides()[SH.idx]||null:null}
+
+function shortsPlayer(){
+  if(SH.player)return SH.player;
+  const v=document.createElement("video");
+  v.playsInline=true;v.setAttribute("playsinline","");v.preload="auto";
+  v.onerror=()=>{
+    const d=SH.cur,el=currentSlide();
+    if(!d||!el||!v.getAttribute("src"))return;
+    if(window.CV_ACTIVITY&&mediaMode!=="stream"&&!NO_FALLBACK){
+      mediaMode="stream";v.src=streamSrc(d);v.load();v.play().catch(()=>{});
+      return;
+    }
+    slideError(el,d,v);
+  };
+  v.onloadedmetadata=()=>{if(window.CV_ACTIVITY&&mediaMode===null)mediaMode="cdn"};
+  v.ontimeupdate=()=>{const el=currentSlide();if(el)shortsTick(el,v)};
+  v.onplay=()=>{const el=currentSlide();if(el)el.classList.remove("paused");pushNow()};
+  v.onpause=()=>{const el=currentSlide();if(el&&v.getAttribute("src"))el.classList.add("paused");pushNow()};
+  v.onseeked=pushNow;
+  v.onended=()=>{if(SH.auto&&!SH.follow&&syncRole!=="follow")go(1)};
+  SH.player=v;
+  return v;
 }
 
-function makeVideo(el,d,active){
-  let v=el.querySelector("video");
-  if(!v){
-    v=document.createElement("video");
-    v.playsInline=true;v.preload=active?"auto":"metadata";
-    v.src=mediaSrc(d);
-    v.onerror=()=>{
-      if(window.CV_ACTIVITY&&mediaMode!=="stream"&&!NO_FALLBACK){
-        mediaMode="stream";v.src=streamSrc(d);v.load();
-        if(v===vid)v.play().catch(()=>{});
-        return;
-      }
-      if(v===vid)slideError(el,d,v);
-    };
-    v.onloadedmetadata=()=>{if(window.CV_ACTIVITY&&mediaMode===null)mediaMode="cdn"};
-    el.querySelector(".s-media").appendChild(v);
+// 次の 1 本は消音の別要素で先に読み込んでおく（通信を先に済ませるだけ）
+function prefetch(d){
+  if(!SH.pre){SH.pre=document.createElement("video");SH.pre.muted=true;SH.pre.preload="auto"}
+  const src=mediaSrc(d);
+  if(SH.pre.getAttribute("src")!==src){SH.pre.src=src;try{SH.pre.load()}catch(e){}}
+}
+
+function clearShortsVideos(){
+  for(const v of [SH.player,SH.pre]){
+    if(!v)continue;
+    try{v.pause()}catch(e){}
+    v.removeAttribute("src");try{v.load()}catch(e){}
+    v.remove();
   }
-  return v;
 }
 
 function slideError(el,d,v){
@@ -1569,8 +1605,8 @@ async function activate(i){
   SH.idx=i;
   const el=all[i];
   const id=Number(el.dataset.id);
-  all.forEach((s,j)=>{if(j!==i&&j!==i+1)dropVideo(s)});
-  if(vid&&vid.parentNode&&!el.contains(vid)){try{vid.pause()}catch(e){}}
+  const v=shortsPlayer();
+  try{v.pause()}catch(e){}
   clearTimeout(SH.seenTimer);
 
   let d;
@@ -1578,15 +1614,13 @@ async function activate(i){
   if(SH.idx!==i)return;                 // 待っている間に次へ進んだ
   SH.cur=d;
   drawFire(el,d.reactions||{},d.discord_stars);
-  const v=makeVideo(el,d,true);
+  el.querySelector(".s-media").appendChild(v);
+  const src=mediaSrc(d);
+  if(v.getAttribute("src")!==src){v.src=src;try{v.load()}catch(e){}}
+  el.classList.remove("paused");
   vid=v;
   v.loop=!SH.auto||SH.follow;
   v.muted=SH.muted;
-  v.ontimeupdate=()=>shortsTick(el,v);
-  v.onplay=()=>{el.classList.remove("paused");pushNow()};
-  v.onpause=()=>{el.classList.add("paused");pushNow()};
-  v.onseeked=pushNow;
-  v.onended=()=>{if(SH.auto&&!SH.follow&&syncRole!=="follow")go(1)};
   if(!SH.follow&&syncRole!=="follow"){
     try{v.currentTime=0}catch(e){}
     await playWithSound(v);
@@ -1600,20 +1634,32 @@ async function activate(i){
   const next=all[i+1];
   if(next){
     detailOf(Number(next.dataset.id)).then(nd=>{
-      if(SH.idx===i&&SH.on)makeVideo(next,nd,false);
+      if(SH.idx===i&&SH.on)prefetch(nd);
     }).catch(()=>{});
   }
   if(!SH.done&&i>=SH.items.length-3)shortsLoad();
 }
 
 async function playWithSound(v){
-  try{await v.play();$("s-hint").hidden=true;return}
+  try{await v.play();SH.autoMuted=false;$("s-hint").hidden=true;drawMuteIcons();return}
   catch(e){}
-  // 音声付きの自動再生が拒否された環境。消音で再生し、タップで戻せるようにする。
-  v.muted=true;SH.muted=true;drawMuteIcons();
+  // 音声付きの自動再生が拒否された。消音で再生し、次に画面に触れた時点で音を戻す。
+  // 自分で消音にしたとき（SH.muted）とは区別する。
+  v.muted=true;SH.autoMuted=true;drawMuteIcons();
   try{await v.play()}catch(e){}
   $("s-hint").hidden=false;
 }
+
+// 画面に触れた（タップ・キー操作）＝ブラウザが音を許可するタイミングで音を戻す
+function unlockSound(){
+  if(!SH.on||!SH.autoMuted||SH.muted||!SH.player)return;
+  SH.autoMuted=false;
+  SH.player.muted=false;
+  if(SH.player.paused&&SH.cur&&syncRole!=="follow")SH.player.play().catch(()=>{});
+  $("s-hint").hidden=true;drawMuteIcons();
+}
+["pointerup","touchend","keydown","click"].forEach(t=>
+  document.addEventListener(t,unlockSound,{capture:true,passive:true}));
 
 function markSeen(id){
   if(SH.seen.has(id))return;
@@ -1647,13 +1693,15 @@ function togglePlay(){
 }
 
 function toggleMute(){
-  SH.muted=!SH.muted;
+  SH.muted=SH.autoMuted?false:!SH.muted;
+  SH.autoMuted=false;
   if(vid)vid.muted=SH.muted;
   $("s-hint").hidden=true;
   drawMuteIcons();
 }
 function drawMuteIcons(){
-  feed().querySelectorAll(".s-mute i").forEach(i=>i.textContent=SH.muted?"🔇":"🔊");
+  const m=SH.muted||SH.autoMuted;
+  feed().querySelectorAll(".s-mute i").forEach(i=>i.textContent=m?"🔇":"🔊");
 }
 function toggleCaps(){
   SH.caps=!SH.caps;
@@ -1781,7 +1829,7 @@ $("s-auto").onclick=()=>{
   if(vid&&SH.on)vid.loop=!SH.auto;
   drawShortsTop();
 };
-$("s-hint").onclick=()=>{SH.muted=true;toggleMute()};
+$("s-hint").onclick=()=>{SH.muted=false;SH.autoMuted=true;unlockSound()};
 $("s-tab-t").onclick=()=>openSheet("t");
 $("s-tab-c").onclick=()=>openSheet("c");
 $("s-sheet-x").onclick=closeSheet;
@@ -1822,6 +1870,8 @@ window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
   items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState,
   compact,phone:PHONE,menuOpen:!$("mpanel").hidden,
   shorts:{on:SH.on,idx:SH.idx,cur:SH.cur?SH.cur.id:null,n:SH.items.length,
+          muted:SH.muted,autoMuted:!!SH.autoMuted,
+          preload:SH.pre?SH.pre.getAttribute("src"):null,
           done:SH.done,seed:SH.seed,follow:SH.follow}});
 
 $("more").onclick=()=>{if(!done)load()};

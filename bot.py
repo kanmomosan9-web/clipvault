@@ -21,7 +21,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29f (web login + app)"
+BUILD = "2026-09-29g (shorts sound + update notice)"
 
 intents = discord.Intents.default()
 intents.message_content = True

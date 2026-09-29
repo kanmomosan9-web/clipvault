@@ -234,6 +234,16 @@ def add_routes(app: web.Application, client) -> None:
         resp.del_cookie(COOKIE)
         return resp
 
+    def ui_version() -> str:
+        """画面のファイルが更新されたら変わる値。開きっぱなしのアプリに更新を知らせる。"""
+        try:
+            return str(int((STATIC / "index.html").stat().st_mtime))
+        except OSError:
+            return "0"
+
+    async def version(request):
+        return web.json_response({"v": ui_version()}, headers={"Cache-Control": "no-store"})
+
     # ------------------------------------------------------------ ホーム画面に追加
     async def manifest(request):
         return web.FileResponse(STATIC / "manifest.webmanifest", headers={
@@ -575,7 +585,8 @@ def add_routes(app: web.Application, client) -> None:
         # 置換され、スクリプト全体が構文エラーになる事故があった。
         body = (html.read_text(encoding="utf-8")
                 .replace("%%CLIENT_ID%%", config.CLIENT_ID)
-                .replace("%%CDN_PREFIX%%", config.CDN_PROXY_PREFIX))
+                .replace("%%CDN_PREFIX%%", config.CDN_PROXY_PREFIX)
+                .replace("%%UI_VERSION%%", ui_version()))
         resp = web.Response(text=body, content_type="text/html",
                             headers={"Cache-Control": "no-cache"})
         tok = request.query.get("t")
@@ -606,6 +617,7 @@ def add_routes(app: web.Application, client) -> None:
     r.add_get("/logout", logout)
     r.add_get("/manifest.webmanifest", manifest)
     r.add_get("/sw.js", service_worker)
+    r.add_get("/api/version", version)
     r.add_get("/api/me", require_user(me))
     r.add_get("/api/clips", require_user(clips))
     r.add_get("/api/clips/{id}", require_user(clip_detail))

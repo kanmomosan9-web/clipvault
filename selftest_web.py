@@ -289,6 +289,11 @@ async def main():
         for ic in mf["icons"]:
             rr = await cli.get(ic["src"])
             assert rr.status == 200, ic["src"]
+        r = await cli.get("/api/version")
+        ver = (await r.json())["v"]
+        body = await (await cli.get("/")).text()
+        assert f'__UI_VERSION__ = "{ver}"' in body, "画面にバージョンが埋め込まれていない"
+        print("GET /api/version      ->", ver)
         r = await cli.get("/sw.js")
         assert r.status == 200 and "javascript" in r.headers["Content-Type"]
         r = await cli.get("/assets/icons/apple-touch-icon.png")
