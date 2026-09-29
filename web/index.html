@@ -395,6 +395,7 @@ body.following .shorts .s-side{opacity:.55}
 
 /* ---------------------------------------------------------------- 通知・掲示板 */
 .boardbtn,.bellbtn{position:relative}
+.sharebtn[hidden]{display:none!important}
 .bellbtn{width:36px;height:32px;display:grid;place-items:center;border:1px solid var(--line);font-size:15px;flex:0 0 auto}
 .bellbtn:hover,.bellbtn[aria-expanded="true"]{border-color:var(--gold)}
 .boardbtn[aria-pressed="true"]{background:#1E1A12;border-color:var(--gold)}
@@ -512,6 +513,7 @@ body.board-on aside,body.board-on .stage{display:none}
 .optlist{max-height:230px;overflow-y:auto}
 .primary{height:42px;width:100%;margin-top:12px;background:var(--gold);color:#0A1015;font-weight:700;font-size:14px}
 .primary:disabled{opacity:.45}
+.primary.danger{background:#C4433B;color:#fff}
 .merr{color:#E0524A;font-size:12px;margin-top:8px}
 .pickl{max-height:50vh;overflow-y:auto;margin-top:8px}
 .pickl button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:7px 4px;border-bottom:1px solid #182029}
@@ -598,6 +600,8 @@ body.dc-mobile .s-top .spacer{display:none}
 
 @media(max-width:900px){
   header .boardbtn{display:none}
+  header .sharebtn{display:flex;margin-left:auto;border:none;padding:0 6px;font-size:13px}
+  header .sharebtn+.bellbtn{margin-left:0}
   .bellbtn{margin-left:auto;border:none;width:40px;font-size:17px}
   .bellbtn .nbadge{top:0;right:0}
   .fbar{margin:-14px -12px 12px;padding:10px 12px;top:-14px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
@@ -637,6 +641,7 @@ body.dc-mobile .bellbtn{margin-left:8px}
   <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
   <button class="shortsbtn" id="shortsbtn" title="ランダムな順番でスワイプして次々見る">▶ ショート</button>
   <button class="shortsbtn boardbtn" id="boardbtn" title="掲示板">💬 掲示板<b class="nbadge" id="bbadge" hidden></b></button>
+  <button class="shortsbtn sharebtn" id="sharebtn" title="開いているクリップを掲示板に共有" hidden>📤 共有</button>
   <button class="bellbtn" id="bellbtn" title="通知" aria-expanded="false">🔔<b class="nbadge" id="nbadge" hidden></b></button>
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
 </header>
@@ -682,7 +687,6 @@ body.dc-mobile .bellbtn{margin-left:8px}
             <div class="tagline" id="tagline"></div>
             <div class="reacts">
               <button class="favbtn" id="favbtn"></button>
-              <button class="favbtn sharebtn" id="sharebtn">📤 掲示板に共有</button>
               <span class="rxwrap" id="reacts"></span>
             </div>
             <div class="picker" id="picker"></div>
@@ -981,6 +985,7 @@ async function toggleFav(c){
 }
 
 function reset(){
+  $("sharebtn").hidden=true;
   drawMenuDot();drawRailState();drawFbar();
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
@@ -1156,6 +1161,7 @@ async function openClip(id){
   if(syncRole==="follow"&&!applying)return;   // 追従中は操作させない
   cur=await API.get("/api/clips/"+id);
   openId=id;
+  $("sharebtn").hidden=false;
   cardEls.forEach((el,k)=>el.classList.toggle("open",k===id));
   const pl=$("player");
   pl.classList.add("on","inline");
@@ -1204,6 +1210,7 @@ async function openClip(id){
   $("player").scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 function closeClip(){
+  $("sharebtn").hidden=true;
   if(vid){vid.pause();vid.removeAttribute("src");vid.load();vid=null}
   pushNow();
   const card=cardEls.get(openId);
@@ -1354,6 +1361,7 @@ async function goHome(){
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
   pl.classList.remove("on","inline");
   openId=null;cur=null;vid=null;
+  $("sharebtn").hidden=true;
   filters={game:null,tag:null,by:null};
   onlyFav=false;query="";$("q").value="";
   $("sort").value="new";
@@ -1407,7 +1415,7 @@ async function syncStart(asHost){
   try{
     if(asHost){
       const st=await API.send("POST",syncURL("/host"),{take:true});
-      if(!st.is_host){alert(`${st.host_name} さんが共有中です`);return}
+      if(!st.is_host){toast(`${st.host_name} さんが共有中です`);return}
       syncRole="host";lastSent="";
     }else{
       syncRole="follow";lastRev=-1;
@@ -2236,6 +2244,19 @@ function modal(html){
   return $("mbox");
 }
 function closeModal(){$("modal").hidden=true;$("mbox").innerHTML=""}
+// Discord の Activity 内ではブラウザの確認ダイアログ（confirm）が出ないため、自前で出す
+function askConfirm(msg,ok){
+  return new Promise(res=>{
+    const box=modal(`<h3>確認<button class="x">✕</button></h3>
+      <p style="font-size:13.5px;line-height:1.7;color:#C9D3DC">${esc(msg)}</p>
+      <button class="primary danger" id="myes">${esc(ok||"削除する")}</button>
+      <button class="opt" id="mno" style="justify-content:center;margin-top:8px">やめる</button>`);
+    const done=v=>{closeModal();res(v)};
+    box.querySelector("#myes").onclick=()=>done(true);
+    box.querySelector("#mno").onclick=()=>done(false);
+    box.querySelector(".x").onclick=()=>done(false);
+  });
+}
 $("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal()});
 const avc=id=>"c"+(Number(String(id).slice(-2))%5);
 const when=iso=>{const d=new Date(iso);if(isNaN(d))return"";
@@ -2439,7 +2460,7 @@ function drawThreadHead(){
   if(t.mine){
     $("brename").onclick=renameThread;
     $("bdel").onclick=async()=>{
-      if(!confirm(`スレッド「${t.title}」を削除します。書き込みもすべて消えます。`))return;
+      if(!await askConfirm(`スレッド「${t.title}」を削除します。書き込みもすべて消えます。`,"スレッドを削除"))return;
       await API.send("DELETE",`/api/board/threads/${t.id}`);
       toast("スレッドを削除しました");$("bback").onclick();
     };
@@ -2482,7 +2503,7 @@ function postEl(p){
   if(own){
     el.querySelector(".ed").onclick=()=>editPost(p,el);
     el.querySelector(".dl").onclick=async()=>{
-      if(!confirm("この書き込みを削除しますか？"))return;
+      if(!await askConfirm("この書き込みを削除しますか？"))return;
       await API.send("DELETE",`/api/board/posts/${p.id}`);el.remove();
     };
   }

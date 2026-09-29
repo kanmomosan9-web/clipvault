@@ -111,6 +111,15 @@ async def _push_pending(client, limit: int) -> int:
     """
     if not enabled() or client is None:
         return 0
+    # 本文は届いたがクリップの転送だけ失敗しているもの
+    for r in db.connect().execute(
+            "SELECT p.id, p.clip_id, t.discord_thread_id FROM board_posts p "
+            "JOIN board_threads t ON t.id = p.thread_id WHERE p.clip_id IS NOT NULL "
+            "AND p.discord_message_id IS NOT NULL AND p.discord_forward_id IS NULL "
+            "AND t.discord_thread_id IS NOT NULL ORDER BY p.id LIMIT 50").fetchall():
+        clip = db.get_clip(r["clip_id"])
+        if clip is not None:
+            await _forward_clip(client, r["id"], clip, r["discord_thread_id"])
     rows = db.connect().execute(
         "SELECT id FROM board_posts WHERE discord_message_id IS NULL ORDER BY id LIMIT ?",
         (limit,)).fetchall()
@@ -126,20 +135,36 @@ async def _push_pending(client, limit: int) -> int:
     return sent
 
 
+def _jump(clip) -> str:
+    return (f"https://discord.com/channels/{clip['guild_id']}/{clip['channel_id']}"
+            f"/{clip['message_id']}")
+
+
 async def _forward_clip(client, post_id: int, clip, discord_thread_id: int) -> None:
-    src = await sync._message_for(client, clip)
+    """元の投稿を転送する。できなければ、元の投稿へのリンクを貼る。"""
     dest = await _channel(client, discord_thread_id)
-    if src is None or dest is None:
+    if dest is None:
+        log.warning("転送先のスレッド %s が見つかりません", discord_thread_id)
         return
+    src = await sync._message_for(client, clip)
+    if src is None:
+        log.warning("転送元の投稿を読めません（保存チャンネルの『メッセージ履歴を読む』権限を確認）: "
+                    "channel=%s message=%s", clip["channel_id"], clip["message_id"])
+    else:
+        try:
+            fwd = await src.forward(dest)
+            board.set_post_discord(post_id, forward_id=fwd.id)
+            log.info("クリップ %s をスレッド %s に転送しました", clip["id"], discord_thread_id)
+            return
+        except discord.HTTPException as e:
+            log.warning("転送に失敗（%s %s）。代わりにリンクを貼ります: %s",
+                        getattr(e, "status", "?"), getattr(e, "code", "?"), e)
     try:
-        fwd = await src.forward(dest)
-    except discord.Forbidden:
-        log.warning("転送できません。bot に保存チャンネルの閲覧とフォーラムへの投稿の権限が必要です")
-        return
+        msg = await dest.send(f"🎬 **{_title(clip)[:80]}**\n{_jump(clip)}",
+                              allowed_mentions=discord.AllowedMentions.none())
+        board.set_post_discord(post_id, forward_id=msg.id)
     except discord.HTTPException as e:
-        log.warning("転送に失敗: %s", e)
-        return
-    board.set_post_discord(post_id, forward_id=fwd.id)
+        log.warning("リンクも貼れませんでした: %s", e)
 
 
 async def edit_post(client, post_id: int) -> None:
@@ -265,6 +290,9 @@ async def pull(client, message) -> bool:
     pid = board.add_post(thread["id"], message.author.id, message.author.display_name,
                          body, clip_id=clip["id"] if clip else None, att=att,
                          discord_message_id=message.id)
+    if clip is not None:
+        # Discord で貼られたクリップは、その投稿自体が転送にあたる（送り直しの対象にしない）
+        board.set_post_discord(pid, forward_id=message.id)
     notify.on_board_post(client, thread["id"], pid, message.author.id,
                          message.author.display_name, body,
                          clip["id"] if clip else None, before)

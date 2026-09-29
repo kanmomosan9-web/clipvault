@@ -91,6 +91,7 @@ function fakeFetch(url, init) {
     edited_at: null, clip: null, video: null } });
   if (/\/api\/board\/threads\/\d+/.test(u)) return json(THREAD);
   if (u.includes("/api/board/threads") && init && init.method === "POST") return json({ id: 5, post_id: 1 });
+  if (u.includes("/api/board/posts/") && init && init.method === "DELETE") return json({ ok: true });
   if (u.includes("/api/board/threads")) return json({ items: THREADS });
   if (u.includes("/api/session/")) return json({ host_id: null, host_name: "",
     is_host: false, view: {}, rev: 0, tick: 0, elapsed: 0, watchers: ["つるかん"] });
@@ -496,8 +497,11 @@ async function boot(activity, url, opts) {
   check(!wf.__state().board.on && !wf.document.body.classList.contains("board-on"), "ロゴで一覧に戻る");
 
   console.log("\n=== 共有 ===");
+  check($f("sharebtn").hidden, "クリップを開いていないときは共有ボタンを出さない");
+  check(wf.document.querySelector("header").contains($f("sharebtn")), "共有ボタンは掲示板の横（ヘッダー）");
   wf.document.querySelectorAll(".card")[0].onclick();
   await sleep(80);
+  check(!$f("sharebtn").hidden, "クリップを開くと共有ボタンが出る");
   $f("sharebtn").onclick();
   await sleep(80);
   check(!$f("modal").hidden && $f("mbox").textContent.includes("新しいスレッドを立てる"), "共有の画面");
@@ -510,6 +514,26 @@ async function boot(activity, url, opts) {
   check(calls.some((c) => c.startsWith("POST") && c.includes("/api/board/threads/5/posts")),
         "既存のスレッドに投稿");
   check($f("modal").hidden && !$f("toast").hidden, "共有しましたの表示");
+  $f("back").onclick();
+  await sleep(40);
+  check($f("sharebtn").hidden, "閉じると共有ボタンも消える");
+
+  console.log("\n=== 削除の確認（Activity では confirm が使えない） ===");
+  wf.confirm = () => { throw new Error("confirm は使わない"); };
+  await wf.openBoard(5);
+  await sleep(80);
+  calls.length = 0;
+  $f("bposts").querySelector(".bp .own .dl").onclick();
+  await sleep(40);
+  check(!$f("modal").hidden && $f("mbox").textContent.includes("削除しますか"), "自前の確認画面が出る");
+  $f("mbox").querySelector("#myes").onclick();
+  await sleep(60);
+  check(calls.some((c) => c.startsWith("DELETE") && c.includes("/api/board/posts/1")), "削除が送られる");
+  $f("bdel").onclick();
+  await sleep(40);
+  $f("mbox").querySelector("#mno").onclick();
+  await sleep(40);
+  check(!calls.some((c) => c.includes("DELETE") && c.includes("/api/board/threads/5")), "やめるを押すと消さない");
   wf.close();
 
   console.log("\n=== スマホの配置 ===");
@@ -555,7 +579,7 @@ async function boot(activity, url, opts) {
   check(wp.__state().phone === true, "スマホとして判定");
   check(wp.document.body.classList.contains("dc-mobile"), "退出ボタンの場所を空ける");
   const hdr = wp.document.querySelector("header");
-  check(!hdr.querySelector("button:not(.mark):not(#shortsbtn):not(#boardbtn):not(#bellbtn)"),
+  check(!hdr.querySelector("button:not(.mark):not(#shortsbtn):not(#boardbtn):not(#bellbtn):not(#sharebtn)"),
         "上のバーはロゴとベルだけ（ショート・掲示板は CSS で非表示）");
   check(wp.document.getElementById("syncbar").hidden, "みんなで見るバーが出ない");
   check(!calls.some((c) => c.includes("/api/session/")), "同時視聴の通信をしない");

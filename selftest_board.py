@@ -291,6 +291,30 @@ async def main():
               and board.get_thread(tid2)["discord_thread_id"],
               "権限が付いたら未送信分をまとめて送る（スレッドも作る）")
         check(await forum.push_pending(cli3) == 0, "送った分は二重に送らない")
+
+        # 転送に失敗したら、元の投稿へのリンクを貼る
+        class BadSrc:
+            async def forward(self, dest):
+                raise discord.HTTPException(NS(status=400, reason="Bad"), "cannot forward")
+        posted = []
+
+        async def chan2(client, cid):
+            async def send(text, allowed_mentions=None):
+                posted.append(text)
+                return NS(id=88888)
+            return NS(id=cid, send=send)
+
+        async def bad_for(client, clip):
+            return BadSrc()
+        sy._message_for, forum._channel = bad_for, chan2
+        q3 = board.add_post(tid2, 300, "やしき", "", clip_id=2)
+        await forum.push_pending(cli3)
+        check(posted and "discord.com/channels/" in posted[-1]
+              and board.get_post(q3)["discord_forward_id"] == 88888,
+              "転送できないときは元の投稿へのリンクを貼る")
+        posted.clear()
+        await forum.push_pending(cli3)
+        check(not posted, "リンクを貼った分は送り直さない")
     finally:
         sy.ensure_webhook, sy._message_for, forum._channel = real_e, real_m, real_c
         config.FORUM_CHANNEL_ID = 0

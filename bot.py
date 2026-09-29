@@ -24,7 +24,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29k (resend board posts)"
+BUILD = "2026-09-29l (activity delete, share button, forward fallback)"
 
 intents = discord.Intents.default()
 intents.message_content = True
