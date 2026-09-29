@@ -37,6 +37,27 @@ const FACETS = {
 };
 
 const calls = [];
+const PULSE = { seq: 10, changes: [] };
+const NOTIFS = [
+  { id: 1, kind: "comment", read: false, actor: "たいち", actors: ["たいち"], clip_id: 1,
+    clip_title: "ペンタキル", thread_id: null, thread_title: "", body: "神", at: 3,
+    created_at: new Date().toISOString() },
+  { id: 2, kind: "reply", read: false, actor: "やしき", actors: ["やしき"], clip_id: null,
+    clip_title: "", thread_id: 5, thread_title: "神プレイ集", body: "次は俺",
+    created_at: new Date().toISOString() },
+];
+const THREADS = [{ id: 5, title: "神プレイ集", creator: "つるかん", creator_id: "4242",
+  updated_at: new Date().toISOString(), posts: 2, videos: 1, cover: 1,
+  last: { user: "たいち", text: "エグい" }, unread: 2 }];
+const THREAD = { thread: { id: 5, title: "神プレイ集", creator: "つるかん", creator_id: "4242",
+  mine: true, participants: 2 }, posts: [
+  { id: 1, thread_id: 5, user: "つるかん", user_id: "4242", body: "貼ってこ",
+    created_at: new Date().toISOString(), edited_at: null,
+    clip: { id: 1, title: "ペンタキル", by: "つるかん", duration: 47, game: "LoL", stars: 3 },
+    video: null },
+  { id: 2, thread_id: 5, user: "たいち", user_id: "77", body: "エグい",
+    created_at: new Date().toISOString(), edited_at: null, clip: null,
+    video: { src: "/board/media/2", name: "a.mp4" } }] };
 let UNAUTH = false;
 
 function fakeFetch(url, init) {
@@ -60,6 +81,17 @@ function fakeFetch(url, init) {
     browser_url: "https://clipvault.example.ts.net/?t=TOK" });
   if (u.includes("/api/log")) return json({ ok: true });
   if (u.includes("/api/version")) return json({ v: "999" });
+  if (u.includes("/api/pulse")) return json({ notifications: 2, board: 3, v: "100", seq: PULSE.seq,
+    changes: PULSE.changes });
+  if (u.includes("/api/notifications/read")) return json({ unread: 0 });
+  if (u.includes("/api/notifications")) return json({ unread: 2, dm: false, items: NOTIFS });
+  if (u.includes("/api/settings")) return json({ dm: true });
+  if (/\/api\/board\/threads\/\d+\/posts/.test(u)) return json({ post: { id: 99, thread_id: 5,
+    user: "つるかん", user_id: "4242", body: "送った", created_at: new Date().toISOString(),
+    edited_at: null, clip: null, video: null } });
+  if (/\/api\/board\/threads\/\d+/.test(u)) return json(THREAD);
+  if (u.includes("/api/board/threads") && init && init.method === "POST") return json({ id: 5, post_id: 1 });
+  if (u.includes("/api/board/threads")) return json({ items: THREADS });
   if (u.includes("/api/session/")) return json({ host_id: null, host_name: "",
     is_host: false, view: {}, rev: 0, tick: 0, elapsed: 0, watchers: ["つるかん"] });
   if (u.includes("/api/facets")) return json(FACETS);
@@ -408,6 +440,78 @@ async function boot(activity, url, opts) {
   wcd.close();
   DETAIL.cdn = "";
 
+  console.log("\n=== 絞り込みのハイライト ===");
+  const wf = await boot(false);
+  const $f = (id) => wf.document.getElementById(id);
+  check($f("fbar").hidden, "条件が無いときは札を出さない");
+  wf.document.querySelector("#games .tag").onclick();
+  await sleep(60);
+  check(wf.document.querySelector("#games .tag").getAttribute("aria-pressed") === "true",
+        "押したらすぐハイライトされる");
+  check(!$f("fbar").hidden && $f("fbar").textContent.includes("LoL"), "『絞り込み中』の札が出る");
+  check(wf.document.querySelector(".card .chip.hit") !== null, "当たったタグも金色");
+  $f("fbar").querySelector(".fchip").onclick();
+  await sleep(60);
+  check($f("fbar").hidden && wf.__state().filters.game === null, "札の ✕ で外せる");
+  const mine = [...$f("myrail").querySelectorAll(".tag")].find((b) => b.textContent.includes("自分の投稿"));
+  mine.onclick();
+  await sleep(40);
+  check(wf.__state().filters.by === "つるかん" &&
+        [...$f("myrail").querySelectorAll(".tag")][1].getAttribute("aria-pressed") === "true",
+        "『自分の投稿』で絞れる");
+
+  console.log("\n=== 通知と自動更新 ===");
+  await sleep(40);
+  check($f("nbadge").textContent === "2" && !$f("nbadge").hidden, "ベルに未読数");
+  check($f("bbadge").textContent === "3", "掲示板ボタンに未読数");
+  PULSE.changes = [{ id: 1, stars: 42, comments: 7 }];
+  await wf.pulse();
+  const c1 = wf.document.querySelector(".card .star");
+  check(c1 && c1.textContent === "★42", "Discord のリアクションが一覧の数字に反映");
+  PULSE.changes = [];
+  $f("bellbtn").onclick({ stopPropagation() {} });
+  await sleep(60);
+  check(!$f("npanel").hidden && $f("nlist").querySelectorAll(".ni").length === 2, "通知の一覧");
+  check($f("nlist").textContent.includes("あなたのクリップ「ペンタキル」にコメント"), "通知の文面");
+  $f("nlist").querySelectorAll(".ni")[1].onclick();
+  await sleep(120);
+  check(wf.__state().board.on && wf.__state().board.tid === 5, "返信の通知から掲示板のスレッドへ");
+
+  console.log("\n=== 掲示板 ===");
+  check(wf.document.body.classList.contains("board-on"), "一覧の代わりに掲示板を表示");
+  check($f("blist").querySelectorAll(".ti").length === 1, "スレッド一覧");
+  check($f("bposts").querySelectorAll(".bp").length === 2, "書き込みの表示");
+  check($f("bposts").querySelector(".ccard") !== null, "クリップはカードで表示");
+  check($f("bposts").querySelector("video.bvid") !== null, "直接アップロードの動画は再生できる");
+  check($f("bposts").querySelector(".bp .own") !== null, "自分の書き込みに編集・削除");
+  check(!!$f("brename"), "立てた人にはタイトル変更・削除");
+  $f("btext").value = "送った";
+  await wf.sendPost();
+  check($f("bposts").querySelectorAll(".bp").length === 3, "送信すると追加される");
+  $f("bposts").querySelector(".ccard .cth").onclick();
+  await sleep(60);
+  check($f("bposts").querySelector(".ccard video") !== null, "カードを押すとその場で再生");
+  $f("home").onclick();
+  await sleep(80);
+  check(!wf.__state().board.on && !wf.document.body.classList.contains("board-on"), "ロゴで一覧に戻る");
+
+  console.log("\n=== 共有 ===");
+  wf.document.querySelectorAll(".card")[0].onclick();
+  await sleep(80);
+  $f("sharebtn").onclick();
+  await sleep(80);
+  check(!$f("modal").hidden && $f("mbox").textContent.includes("新しいスレッドを立てる"), "共有の画面");
+  check($f("mbox").querySelector("#mtitle").value === "ペンタキル", "タイトルは動画名が入っている");
+  check($f("mbox").querySelectorAll('.opt[data-t]').length === 2, "既存のスレッドを選べる");
+  $f("mbox").querySelectorAll(".opt[data-t]")[1].onclick();
+  calls.length = 0;
+  $f("mbox").querySelector("#mok").onclick();
+  await sleep(80);
+  check(calls.some((c) => c.startsWith("POST") && c.includes("/api/board/threads/5/posts")),
+        "既存のスレッドに投稿");
+  check($f("modal").hidden && !$f("toast").hidden, "共有しましたの表示");
+  wf.close();
+
   console.log("\n=== スマホの配置 ===");
   calls.length = 0;
   const wm = await boot(false, "https://clipvault.example.ts.net/", { width: 390, touch: true });
@@ -451,7 +555,8 @@ async function boot(activity, url, opts) {
   check(wp.__state().phone === true, "スマホとして判定");
   check(wp.document.body.classList.contains("dc-mobile"), "退出ボタンの場所を空ける");
   const hdr = wp.document.querySelector("header");
-  check(!hdr.querySelector("button:not(.mark):not(#shortsbtn)"), "上のバーにはロゴ以外のボタンが無い（ショートは CSS で非表示）");
+  check(!hdr.querySelector("button:not(.mark):not(#shortsbtn):not(#boardbtn):not(#bellbtn)"),
+        "上のバーはロゴとベルだけ（ショート・掲示板は CSS で非表示）");
   check(wp.document.getElementById("syncbar").hidden, "みんなで見るバーが出ない");
   check(!calls.some((c) => c.includes("/api/session/")), "同時視聴の通信をしない");
   wp.close();

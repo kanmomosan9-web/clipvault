@@ -30,6 +30,11 @@ MARKERS = {
     "webui.py": [("Web API", "def add_routes"), ("Activity 認証", "def exchange_code"),
                  ("ブラウザ版ログイン", "def auth_callback")],
     "sync.py": [("コメント同期", "def push_comment"), ("リアクション同期", "def push_reaction")],
+    "board.py": [("掲示板", "def list_threads")],
+    "notify.py": [("通知", "def on_board_post")],
+    "forum.py": [("フォーラム同期", "def push_post")],
+    "boardapi.py": [("掲示板API", "def add_routes")],
+    "selftest_board.py": [("掲示板の検査", "BOARD OK")],
     "session.py": [("同時視聴", "def take_host"), ("ショートの同時視聴", '"shorts"')],
     "web/assets/boot.js": [("Activity 起動処理", "startActivity")],
     "web/assets/fonts.css": [("同梱フォント", "font-face")],
@@ -189,6 +194,9 @@ def main():
             sdk = HERE / "web" / "assets" / "embedded-app-sdk.js"
             line(OK if sdk.exists() else NG, "Embedded App SDK",
                  f"{sdk.stat().st_size // 1024} KB" if sdk.exists() else "見つからない")
+        line(OK if cfg2.FORUM_CHANNEL_ID else WARN, "掲示板の Discord 同期",
+             f"フォーラム {cfg2.FORUM_CHANNEL_ID}" if cfg2.FORUM_CHANNEL_ID
+             else "FORUM_CHANNEL_ID 未設定（Web だけの掲示板）")
         line(OK if cfg2.SYNC_COMMENTS else WARN, "コメント同期",
              "有効" if cfg2.SYNC_COMMENTS else "無効（SYNC_COMMENTS=0）")
         line(OK if cfg2.SYNC_REACTIONS else WARN, "リアクション同期",
@@ -278,7 +286,7 @@ def main():
     else:
         print("ファイルは最新です。あとは bot のプロセスを再起動してください。")
         print("起動ログに次の行が出れば、新しいコードで動いています:")
-        print("  INFO BUILD 2026-09-29h (faster browser playback)")
+        print("  INFO BUILD 2026-09-29i (board + notifications)")
     print()
 
 

@@ -9,7 +9,9 @@ from aiohttp import web
 
 import config
 import db
+import boardapi
 import dc
+import notify
 import session
 
 log = logging.getLogger("web")
@@ -398,6 +400,8 @@ def add_routes(app: web.Application, client) -> None:
         at = body.get("at")
         at = float(at) if at is not None else None
         comment_id = db.add_comment(cid, u["user_id"], u["user_name"], text, at)
+        notify.emit(client, db.get_clip(cid)["uploader_id"], "comment", u["user_id"],
+                    u["user_name"], clip_id=cid, comment_id=comment_id, body=text, at=at)
         hook = getattr(client, "on_web_comment", None)
         if hook:
             asyncio.create_task(
@@ -419,6 +423,9 @@ def add_routes(app: web.Application, client) -> None:
         if not emoji:
             return web.json_response({"error": "empty"}, status=400)
         added = db.toggle_reaction(cid, u["user_id"], u["user_name"], emoji)
+        if added:
+            notify.emit(client, db.get_clip(cid)["uploader_id"], "reaction", u["user_id"],
+                        u["user_name"], clip_id=cid, body=emoji)
         hook = getattr(client, "on_web_reaction", None)
         if hook:
             asyncio.create_task(hook(cid, emoji, added))
@@ -637,6 +644,7 @@ def add_routes(app: web.Application, client) -> None:
     r.add_post("/api/session/{inst}/push", require_user(session_push))
     r.add_get("/media/{id}", require_user(media))
     r.add_get("/thumb/{id}", require_user(thumb))
+    boardapi.add_routes(app, client, require_user, ui_version)
     if (STATIC / "assets").is_dir():
         r.add_static("/assets", STATIC / "assets")
 

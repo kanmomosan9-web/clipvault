@@ -136,7 +136,7 @@ async def push_comment(client: discord.Client, clip_id: int, comment_id: int,
     log.info("comment %s -> thread %s", comment_id, thread.id)
 
 
-async def pull_comment(message: discord.Message) -> bool:
+async def pull_comment(message: discord.Message, client=None) -> bool:
     """Discord のスレッドに直接書かれたコメントを取り込む。"""
     if not config.SYNC_COMMENTS:
         return False
@@ -154,6 +154,9 @@ async def pull_comment(message: discord.Message) -> bool:
                          message.author.display_name, body, None)
     db.link_comment(cid, message.id)
     log.info("thread %s -> comment %s", message.channel.id, cid)
+    import notify
+    notify.emit(client, clip["uploader_id"], "comment", message.author.id,
+                message.author.display_name, clip_id=clip["id"], comment_id=cid, body=body)
     return True
 
 

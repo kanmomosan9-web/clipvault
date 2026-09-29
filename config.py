@@ -93,6 +93,10 @@ PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 WEB_TOKEN_DAYS = int(os.getenv("WEB_TOKEN_DAYS", "30"))
 # 「Discord でログイン」で入ったときの期限。使っている間は自動で延びる。
 WEB_LOGIN_DAYS = int(os.getenv("WEB_LOGIN_DAYS", "90"))
+# 掲示板とつなげる Discord のフォーラムチャンネル。0 なら Web だけの掲示板になる。
+FORUM_CHANNEL_ID = int(os.getenv("FORUM_CHANNEL_ID", "0") or 0)
+# bot 起動時に、止まっていた間のリアクションを数え直す件数（新しい順）
+REACTION_CATCHUP = int(os.getenv("REACTION_CATCHUP", "300"))
 
 # Web と Discord の相互同期
 # コメント: クリップのスレッドへ Webhook で本人名義で投稿し、

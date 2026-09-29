@@ -133,6 +133,68 @@ CREATE TABLE IF NOT EXISTS clip_tags (
 CREATE INDEX IF NOT EXISTS idx_clip_tags_tag ON clip_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_clips_created ON clips(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS board_threads (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    title             TEXT    NOT NULL,
+    creator_id        INTEGER NOT NULL,
+    creator_name      TEXT    NOT NULL,
+    created_at        TEXT    NOT NULL,
+    updated_at        TEXT    NOT NULL,
+    discord_thread_id INTEGER UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS board_posts (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id          INTEGER NOT NULL REFERENCES board_threads(id) ON DELETE CASCADE,
+    user_id            INTEGER NOT NULL,
+    user_name          TEXT    NOT NULL,
+    body               TEXT    NOT NULL DEFAULT '',
+    clip_id            INTEGER REFERENCES clips(id) ON DELETE SET NULL,
+    att_channel_id     INTEGER,
+    att_message_id     INTEGER,
+    att_id             INTEGER,
+    att_name           TEXT,
+    created_at         TEXT    NOT NULL,
+    edited_at          TEXT,
+    discord_message_id INTEGER,
+    discord_forward_id INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_posts_thread ON board_posts(thread_id, id);
+CREATE INDEX IF NOT EXISTS idx_board_posts_dmsg ON board_posts(discord_message_id);
+CREATE INDEX IF NOT EXISTS idx_board_posts_fwd ON board_posts(discord_forward_id);
+
+CREATE TABLE IF NOT EXISTS board_reads (
+    user_id      INTEGER NOT NULL,
+    thread_id    INTEGER NOT NULL,
+    last_post_id INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, thread_id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    kind        TEXT    NOT NULL,
+    actor_id    INTEGER,
+    actor_name  TEXT    NOT NULL DEFAULT '',
+    actors      TEXT    NOT NULL DEFAULT '',
+    clip_id     INTEGER,
+    thread_id   INTEGER,
+    post_id     INTEGER,
+    comment_id  INTEGER,
+    body        TEXT    NOT NULL DEFAULT '',
+    at_seconds  REAL,
+    created_at  TEXT    NOT NULL,
+    read        INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    user_id    INTEGER PRIMARY KEY,
+    dm_notify  INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS clip_fts USING fts5(
     title, tags, note, transcript, tokenize='trigram'
 );
@@ -349,6 +411,46 @@ def set_reactions(message_id: int, count: int) -> None:
     c = connect()
     c.execute("UPDATE clips SET reactions = ? WHERE message_id = ?", (count, message_id))
     c.commit()
+    for r in c.execute("SELECT id FROM clips WHERE message_id = ?", (message_id,)):
+        mark_changed(r["id"])
+
+
+# ---------- 変化の記録（画面の自動更新用） ----------
+# リアクション数・コメント数が変わったクリップを覚えておき、
+# 画面側は「前回からの番号」を渡して変わった分だけ受け取る。
+_changes: list[tuple[int, int]] = []
+_change_seq = 0
+
+
+def mark_changed(clip_id: int) -> None:
+    global _change_seq
+    _change_seq += 1
+    _changes.append((_change_seq, clip_id))
+    if len(_changes) > 2000:
+        del _changes[:1000]
+
+
+def changes_since(seq: int) -> tuple[int, list[int]]:
+    ids = sorted({cid for s, cid in _changes if s > seq})
+    return _change_seq, ids
+
+
+def clip_counts(ids: list[int]) -> dict[int, dict]:
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    c = connect()
+    out = {r["id"]: {"stars": r["reactions"], "comments": 0} for r in c.execute(
+        f"SELECT id, reactions FROM clips WHERE id IN ({marks})", ids)}
+    for r in c.execute(f"SELECT clip_id, COUNT(*) n FROM reactions WHERE clip_id IN ({marks}) "
+                       "GROUP BY clip_id", ids):
+        if r["clip_id"] in out:
+            out[r["clip_id"]]["stars"] += r["n"]
+    for r in c.execute(f"SELECT clip_id, COUNT(*) n FROM comments WHERE clip_id IN ({marks}) "
+                       "GROUP BY clip_id", ids):
+        if r["clip_id"] in out:
+            out[r["clip_id"]]["comments"] = r["n"]
+    return out
 
 
 def uploader_id_by_name(name: str) -> Optional[int]:
@@ -563,6 +665,7 @@ def add_comment(clip_id: int, user_id: int, user_name: str, body: str,
         (clip_id, user_id, user_name, at_seconds, body.strip(),
          datetime.now(timezone.utc).isoformat()))
     c.commit()
+    mark_changed(clip_id)
     return cur.lastrowid
 
 
@@ -575,9 +678,12 @@ def list_comments(clip_id: int) -> list[sqlite3.Row]:
 
 def delete_comment(comment_id: int, user_id: int) -> bool:
     c = connect()
+    row = c.execute("SELECT clip_id FROM comments WHERE id = ?", (comment_id,)).fetchone()
     cur = c.execute("DELETE FROM comments WHERE id = ? AND user_id = ?",
                     (comment_id, user_id))
     c.commit()
+    if cur.rowcount and row:
+        mark_changed(row["clip_id"])
     return cur.rowcount > 0
 
 
@@ -603,12 +709,14 @@ def toggle_reaction(clip_id: int, user_id: int, user_name: str, emoji: str) -> b
         (clip_id, user_id, emoji))
     if cur.rowcount:
         c.commit()
+        mark_changed(clip_id)
         return False
     c.execute(
         "INSERT INTO reactions (clip_id, user_id, user_name, emoji, created_at) "
         "VALUES (?, ?, ?, ?, ?)",
         (clip_id, user_id, user_name, emoji, datetime.now(timezone.utc).isoformat()))
     c.commit()
+    mark_changed(clip_id)
     return True
 
 
@@ -714,8 +822,12 @@ def comment_by_message(message_id: int) -> Optional[sqlite3.Row]:
 
 def delete_comment_by_message(message_id: int) -> bool:
     c = connect()
+    row = c.execute("SELECT clip_id FROM comments WHERE thread_message_id = ?",
+                    (message_id,)).fetchone()
     cur = c.execute("DELETE FROM comments WHERE thread_message_id = ?", (message_id,))
     c.commit()
+    if cur.rowcount and row:
+        mark_changed(row["clip_id"])
     return cur.rowcount > 0
 
 

@@ -11,6 +11,9 @@ from discord import app_commands
 from discord.ext import commands
 
 import api
+import board
+import forum
+import notify
 import sync
 import webui
 import config
@@ -21,7 +24,7 @@ import media
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("clipvault")
 
-BUILD = "2026-09-29h (faster browser playback)"
+BUILD = "2026-09-29i (board + notifications)"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -144,10 +147,57 @@ async def on_ready():
         log.error("command sync failed: %s", e)
     log.info("BUILD %s", BUILD)
     log.info("logged in as %s | storage channels: %s", bot.user, config.STORAGE_CHANNEL_IDS)
+    log.info("掲示板: %s", f"フォーラム {config.FORUM_CHANNEL_ID} と同期" if forum.enabled()
+             else "Web のみ（FORUM_CHANNEL_ID 未設定）")
+    global _catchup_started
+    if not _catchup_started:
+        _catchup_started = True
+        asyncio.create_task(catch_up_reactions())
+
+
+_catchup_started = False
+
+
+async def catch_up_reactions():
+    """bot が止まっていた間に付いたリアクションを数え直す（新しいクリップから順に）。"""
+    if config.REACTION_CATCHUP <= 0:
+        return
+    refs = db.connect().execute(
+        "SELECT DISTINCT message_id, channel_id FROM clips ORDER BY created_at DESC LIMIT ?",
+        (config.REACTION_CATCHUP,)).fetchall()
+    n = 0
+    for r in refs:
+        try:
+            if await _sync_reactions(r["message_id"], r["channel_id"]):
+                n += 1
+        except Exception as e:
+            log.debug("catch-up skipped: %s", e)
+        await asyncio.sleep(0.4)      # Discord の回数制限に当たらないように
+    log.info("リアクションの数え直し: %d 件", n)
 
 
 async def on_web_comment(clip_id, comment_id, user_id, user_name, body, at):
     await sync.push_comment(bot, clip_id, comment_id, user_id, user_name, body, at)
+
+
+async def on_board_post(post_id):
+    await forum.push_post(bot, post_id)
+
+
+async def on_board_edit(post_id):
+    await forum.edit_post(bot, post_id)
+
+
+async def on_board_delete(post, thread):
+    await forum.delete_post(bot, post, thread)
+
+
+async def on_board_rename(thread_id):
+    await forum.rename_thread(bot, thread_id)
+
+
+async def on_board_thread_delete(discord_thread_id):
+    await forum.delete_thread(bot, discord_thread_id)
 
 
 async def on_web_reaction(clip_id, emoji, added):
@@ -156,13 +206,20 @@ async def on_web_reaction(clip_id, emoji, added):
 
 bot.on_web_comment = on_web_comment
 bot.on_web_reaction = on_web_reaction
+bot.on_board_post = on_board_post
+bot.on_board_edit = on_board_edit
+bot.on_board_delete = on_board_delete
+bot.on_board_rename = on_board_rename
+bot.on_board_thread_delete = on_board_thread_delete
 
 
 @bot.event
 async def on_message(message: discord.Message):
     if not message.guild:
         return
-    if await sync.pull_comment(message):
+    if await forum.pull(bot, message):
+        return
+    if await sync.pull_comment(message, bot):
         return
     if message.author.bot:
         return
@@ -216,6 +273,27 @@ async def tag_by_reply(message: discord.Message) -> bool:
 
 
 @bot.event
+async def on_raw_message_edit(payload: discord.RawMessageUpdateEvent):
+    """掲示板（フォーラム）での編集を Web に映す。キャッシュに無い古い書き込みにも効く。"""
+    if forum.enabled() and "content" in payload.data:
+        forum.pull_edit(payload.message_id, payload.data.get("content"))
+
+
+@bot.event
+async def on_raw_thread_update(payload: discord.RawThreadUpdateEvent):
+    if forum.enabled() and payload.parent_id == config.FORUM_CHANNEL_ID:
+        name = payload.data.get("name")
+        if name:
+            forum.pull_thread_rename(payload.thread_id, name)
+
+
+@bot.event
+async def on_raw_thread_delete(payload: discord.RawThreadDeleteEvent):
+    if forum.enabled():
+        forum.pull_thread_delete(payload.thread_id)
+
+
+@bot.event
 async def on_message_edit(before: discord.Message, after: discord.Message):
     """投稿を編集したらタグとタイトルを付け直す。"""
     if after.author.bot or before.content == after.content:
@@ -252,11 +330,25 @@ async def on_raw_message_delete(payload: discord.RawMessageDeleteEvent):
     # スレッド側でコメントが消されたら DB からも消す
     if db.delete_comment_by_message(payload.message_id):
         log.info("thread message %s deleted -> comment removed", payload.message_id)
+    elif forum.enabled() and forum.pull_delete(payload.message_id):
+        log.info("forum message %s deleted -> board post removed", payload.message_id)
 
 
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    await _sync_reactions(payload.message_id, payload.channel_id)
+    if await _sync_reactions(payload.message_id, payload.channel_id):
+        # 投稿者への通知（bot 自身と取り込みの印は除く）
+        if (bot.user and payload.user_id == bot.user.id) or str(payload.emoji) == INGEST_MARK:
+            return
+        clip = db.clip_by_message(payload.message_id)
+        if clip is None:
+            return
+        name = payload.member.display_name if payload.member else ""
+        if not name:
+            user = bot.get_user(payload.user_id)
+            name = user.display_name if user else "だれか"
+        notify.emit(bot, clip["uploader_id"], "reaction", payload.user_id, name,
+                    clip_id=clip["id"], body=str(payload.emoji))
 
 
 @bot.event

@@ -378,6 +378,155 @@ body.following .shorts .s-side{opacity:.55}
 }
 
 
+/* ---------------------------------------------------------------- 絞り込みのハイライト */
+.tag[aria-pressed="true"]{color:#0A1015;background:var(--gold);border-left-color:#fff;font-weight:700}
+.tag[aria-pressed="true"] em{opacity:.85;color:#0A1015}
+.tag[aria-pressed="true"]>span::before{content:"✓ "}
+.fbar{position:sticky;top:-22px;z-index:4;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin:-22px -24px 16px;padding:12px 24px;background:rgba(10,16,21,.94);
+  border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);backdrop-filter:blur(6px)}
+.fbar[hidden]{display:none}
+.fchip{display:inline-flex;align-items:center;gap:6px;padding:3px 5px 3px 10px;background:var(--gold);
+  color:#0A1015;font-size:12.5px;font-weight:700;white-space:nowrap;cursor:pointer}
+.fchip i{font-style:normal;width:18px;height:18px;display:grid;place-items:center;background:rgba(0,0,0,.18);font-size:11px}
+.fchip:hover i{background:rgba(0,0,0,.35)}
+.fclear{color:var(--teal);font-size:12px;margin-left:4px;white-space:nowrap}
+.chip.hit{background:var(--gold);color:#0A1015;border-color:var(--gold)}
+
+/* ---------------------------------------------------------------- 通知・掲示板 */
+.boardbtn,.bellbtn{position:relative}
+.bellbtn{width:36px;height:32px;display:grid;place-items:center;border:1px solid var(--line);font-size:15px;flex:0 0 auto}
+.bellbtn:hover,.bellbtn[aria-expanded="true"]{border-color:var(--gold)}
+.boardbtn[aria-pressed="true"]{background:#1E1A12;border-color:var(--gold)}
+.nbadge{position:absolute;top:-7px;right:-8px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+  background:#E0524A;color:#fff;font-size:11px;font-weight:700;font-style:normal;display:grid;place-items:center;
+  font-family:var(--mono);line-height:1}
+.nbadge[hidden]{display:none}
+.npanel{position:fixed;top:60px;right:16px;z-index:45;width:390px;max-height:min(72vh,640px);display:flex;flex-direction:column;
+  background:#0E151C;border:1px solid var(--gold-dim);box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.npanel[hidden]{display:none}
+.nph{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.nph button{margin-left:auto;color:var(--teal);font-size:12px}
+.nlist{flex:1;overflow-y:auto}
+.ni{display:flex;gap:10px;width:100%;text-align:left;padding:11px 14px 11px 18px;border-bottom:1px solid #182029;position:relative}
+.ni:hover{background:#131C25}
+.ni.new{background:#121C24}
+.ni.new::before{content:"";position:absolute;left:7px;top:21px;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+.ni .tx{flex:1;min-width:0;font-size:12.5px;line-height:1.55}
+.ni .tx b{font-weight:700}
+.ni .tx q{display:block;margin-top:2px;color:#C9D3DC;quotes:"「" "」";word-break:break-word}
+.ni .tm{font-size:10.5px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.ni .th{width:64px;flex:0 0 64px;aspect-ratio:16/9;object-fit:cover;border:1px solid var(--line)}
+.ni .ic{width:26px;flex:0 0 26px;font-size:16px;text-align:center}
+.nnone{padding:28px 16px;color:var(--muted);text-align:center;font-size:12.5px}
+.ndm{display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid var(--line);font-size:12.5px;color:#C9D3DC;cursor:pointer}
+.ndm input{accent-color:var(--gold);width:16px;height:16px}
+
+body.board-on aside,body.board-on .stage{display:none}
+.boardv{flex:1;display:grid;grid-template-columns:360px minmax(0,1fr);min-height:0}
+.boardv[hidden]{display:none}
+.bl{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:#0C131A}
+.bl>*{flex-shrink:0}
+.bhd{display:flex;align-items:center;gap:10px;padding:14px 14px 10px}
+.bhd h2{font-size:17px}
+.bnew{margin-left:auto;padding:6px 12px;background:var(--gold);color:#0A1015;font-weight:700;font-size:12.5px}
+.bseg{display:flex;gap:6px;padding:0 14px 10px}
+.bseg button{font-size:12px;padding:3px 11px;border:1px solid var(--line);color:var(--muted)}
+.bseg button[aria-pressed="true"]{border-color:var(--gold);color:var(--gold);background:#1E1A12}
+.blist{flex:1 1 auto;overflow-y:auto;min-height:0}
+.ti{display:flex;gap:11px;width:100%;text-align:left;padding:12px 14px;border-top:1px solid var(--line);position:relative}
+.ti:hover{background:#111A22}
+.ti.cur{background:#141D26;box-shadow:inset 3px 0 0 var(--gold)}
+.ti .tb{width:92px;flex:0 0 92px;aspect-ratio:16/9;border:1px solid var(--line);position:relative;background:#141C24;
+  display:grid;place-items:center;font-size:20px;overflow:hidden}
+.ti .tb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ti .tb.v::after{content:"▶";position:absolute;inset:0;display:grid;place-items:center;font-size:14px;color:#fff;text-shadow:0 1px 4px #000}
+.ti .tt{font-weight:700;font-size:14px;line-height:1.4;padding-right:22px}
+.ti .pv{font-size:12px;color:#9AA8B5;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ti .mt{font-size:10.5px;color:var(--muted);font-family:var(--mono);margin-top:4px;display:flex;gap:10px}
+.ti .ub{position:absolute;right:14px;top:14px;background:var(--teal);color:#0A1015;font-size:10.5px;font-weight:700;
+  padding:0 6px;border-radius:8px;font-family:var(--mono)}
+.bt{display:flex;flex-direction:column;min-height:0;min-width:0}
+.bth{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);min-height:56px}
+.bth:empty{display:none}
+.bth .bk{display:none;font-size:22px;padding:0 6px 0 0;color:var(--muted)}
+.bth h3{font-size:16px;line-height:1.3}
+.bth small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.bth .ops{margin-left:auto;display:flex;gap:6px}
+.bth .ops button{font-size:12px;padding:3px 9px;border:1px solid var(--line);color:var(--muted)}
+.bth .ops button:hover{color:var(--text);border-color:var(--gold-dim)}
+.bposts{flex:1;overflow-y:auto;padding:8px 16px 16px;min-height:0}
+.bempty{padding:60px 16px;text-align:center;color:var(--muted)}
+.bp{display:flex;gap:10px;padding:9px 0}
+.bp .pb{flex:1;min-width:0}
+.bp .ph{font-size:12px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.bp .ph b{font-size:13px}
+.bp .ph span{color:var(--muted);font-family:var(--mono);font-size:10.5px}
+.bp .ph .own{margin-left:auto;display:flex;gap:8px}
+.bp .ph .own button{font-size:11px;color:var(--muted)}
+.bp .ph .own button:hover{color:var(--gold)}
+.bp .txt{font-size:13.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word;margin-top:1px}
+.av.c1{background:#2F4A5C}.av.c2{background:#4A3350}.av.c3{background:#3D4F2E}.av.c4{background:#5A3A2A}
+.ccard{display:block;width:100%;max-width:340px;text-align:left;margin-top:6px;border:1px solid var(--gold-dim);background:#0E151C}
+.ccard .cth{position:relative;aspect-ratio:16/9;background:#05080B;overflow:hidden}
+.ccard .cth img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ccard .cth video{position:absolute;inset:0;width:100%;height:100%;background:#000}
+.ccard .cth .pl{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
+  background:rgba(0,0,0,.55);display:grid;place-items:center;font-size:16px;color:#fff}
+.ccard .cth .d{position:absolute;right:6px;bottom:6px;background:rgba(5,8,11,.86);font-family:var(--mono);font-size:11px;padding:0 6px}
+.ccard .ci{padding:6px 10px;font-size:12.5px;display:flex;align-items:center;gap:8px}
+.ccard .ci small{display:block;color:var(--muted);font-family:var(--mono);font-size:10.5px}
+.ccard .ci .open{margin-left:auto;font-size:11px;color:var(--teal);white-space:nowrap}
+.bvid{display:block;margin-top:6px;max-width:340px;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--line)}
+.bcomp{flex:0 0 auto;display:flex;gap:8px;align-items:flex-end;padding:10px 12px;border-top:1px solid var(--line);background:#0C131A}
+.bcomp[hidden]{display:none}
+.batt{width:38px;height:38px;border:1px solid var(--line);font-size:16px;flex:0 0 auto}
+.batt:hover{border-color:var(--gold)}
+.bcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.bcol textarea,.mbox textarea,.mbox input[type=text]{width:100%;min-height:38px;max-height:140px;resize:none;background:var(--surface-2);
+  border:1px solid var(--line);padding:8px 10px;font-size:14px;outline:none;font-family:var(--sans);color:var(--text)}
+.bcol textarea:focus,.mbox textarea:focus,.mbox input[type=text]:focus{border-color:var(--gold-dim)}
+.bpick{display:flex;align-items:center;gap:8px;padding:5px;border:1px solid var(--gold-dim);background:#1E1A12;font-size:12.5px}
+.bpick[hidden]{display:none}
+.bpick img{width:64px;aspect-ratio:16/9;object-fit:cover}
+.bpick button{margin-left:auto;padding:0 8px;color:var(--muted);font-size:14px}
+.bsend{height:38px;padding:0 16px;background:var(--gold);color:#0A1015;font-weight:700;font-size:13px;flex:0 0 auto}
+.bsend:disabled{opacity:.45}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:20px}
+.modal[hidden]{display:none}
+.mbox{width:min(460px,100%);max-height:88vh;overflow-y:auto;background:#0E151C;border:1px solid var(--gold-dim);
+  border-top:2px solid var(--gold);padding:16px}
+.mbox h3{font-size:15px;margin-bottom:12px;display:flex;align-items:center}
+.mbox h3 button{margin-left:auto;color:var(--muted);font-size:16px}
+.mbox .lab{font-size:11px;letter-spacing:.12em;color:var(--muted);margin:12px 0 6px}
+.mini{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);background:#0B1117;margin-bottom:12px}
+.mini img{width:86px;aspect-ratio:16/9;object-fit:cover}
+.mini b{font-size:13px;display:block;line-height:1.35}
+.mini small{display:block;color:var(--muted);font-size:11px;font-family:var(--mono)}
+.opt{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:10px 11px;border:1px solid var(--line);margin-bottom:6px;font-size:13px}
+.opt .r{width:16px;height:16px;border-radius:50%;border:2px solid var(--muted);flex:0 0 16px}
+.opt[aria-pressed="true"]{border-color:var(--gold);background:#1E1A12}
+.opt[aria-pressed="true"] .r{border-color:var(--gold);background:radial-gradient(var(--gold) 45%,transparent 50%)}
+.opt small{margin-left:auto;color:var(--muted);font-size:10.5px;font-family:var(--mono);white-space:nowrap}
+.opt span.t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.optlist{max-height:230px;overflow-y:auto}
+.primary{height:42px;width:100%;margin-top:12px;background:var(--gold);color:#0A1015;font-weight:700;font-size:14px}
+.primary:disabled{opacity:.45}
+.merr{color:#E0524A;font-size:12px;margin-top:8px}
+.pickl{max-height:50vh;overflow-y:auto;margin-top:8px}
+.pickl button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:7px 4px;border-bottom:1px solid #182029}
+.pickl button:hover{background:#131C25}
+.pickl img{width:80px;aspect-ratio:16/9;object-fit:cover;flex:0 0 80px}
+.pickl b{font-size:13px;font-weight:500;display:block}
+.pickl small{color:var(--muted);font-family:var(--mono);font-size:10.5px}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;
+  padding:10px 14px;background:#1E1A12;border:1px solid var(--gold);color:var(--text);font-size:13px;display:flex;gap:12px;
+  align-items:center;box-shadow:0 8px 28px rgba(0,0,0,.5);max-width:calc(100% - 32px)}
+.toast[hidden]{display:none}
+.toast button{color:var(--gold);white-space:nowrap}
+@media(min-width:901px){.toast{bottom:28px}}
+.s-side .s-share i{font-size:20px}
+
 /* ---------------------------------------------------------------- スマホ */
 /* 狭い画面では操作を下のバーにまとめる。
    スマホ版 Discord は上の角に退出ボタンなどを重ねてくるため、上には押す物を置かない。 */
@@ -447,6 +596,27 @@ body.dc-mobile .s-top .spacer{display:none}
 .login-btn{display:inline-block;margin-top:18px;padding:11px 22px;background:#5865F2;color:#fff;
   border-radius:4px;font-size:14px;text-decoration:none}
 
+@media(max-width:900px){
+  header .boardbtn{display:none}
+  .bellbtn{margin-left:auto;border:none;width:40px;font-size:17px}
+  .bellbtn .nbadge{top:0;right:0}
+  .fbar{margin:-14px -12px 12px;padding:10px 12px;top:-14px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .fbar::-webkit-scrollbar{display:none}
+  .fbar>span.lab{display:none}
+  .npanel{top:50px;left:0;right:0;width:auto;bottom:calc(58px + env(safe-area-inset-bottom,0px));max-height:none;
+    border-width:0 0 2px;border-color:var(--gold)}
+  .bnav button .nbadge{top:3px;right:calc(50% - 24px)}
+  .boardv{grid-template-columns:1fr}
+  .boardv .bt{display:none}
+  .boardv.in-thread .bl{display:none}
+  .boardv.in-thread .bt{display:flex}
+  .bth .bk{display:block}
+  .bposts{padding:6px 12px 12px}
+  .modal{place-items:end stretch;padding:0}
+  .mbox{width:100%;max-height:86vh;border-width:2px 0 0;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  .ccard,.bvid{max-width:100%}
+}
+body.dc-mobile .bellbtn{margin-left:8px}
 @media(max-width:900px){aside{display:none}.pwrap{grid-template-columns:1fr}.pane{max-height:340px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -466,6 +636,8 @@ body.dc-mobile .s-top .spacer{display:none}
   </select>
   <div class="count"><b id="n">0</b> / <span id="ntotal">0</span></div>
   <button class="shortsbtn" id="shortsbtn" title="ランダムな順番でスワイプして次々見る">▶ ショート</button>
+  <button class="shortsbtn boardbtn" id="boardbtn" title="掲示板">💬 掲示板<b class="nbadge" id="bbadge" hidden></b></button>
+  <button class="bellbtn" id="bellbtn" title="通知" aria-expanded="false">🔔<b class="nbadge" id="nbadge" hidden></b></button>
   <div class="me"><span class="av" id="avme">?</span><span id="who">…</span></div>
 </header>
 <div class="mback" id="mback" hidden></div>
@@ -490,6 +662,7 @@ body.dc-mobile .s-top .spacer{display:none}
   </aside>
 
   <div class="stage">
+    <div class="fbar" id="fbar" hidden></div>
     <div id="grid" class="grid"></div>
     <div id="empty" class="empty" hidden><b>見つかりませんでした</b>別の言葉で探すか、左の絞り込みを解除してください。</div>
     <button id="more" class="more" hidden></button>
@@ -509,6 +682,7 @@ body.dc-mobile .s-top .spacer{display:none}
             <div class="tagline" id="tagline"></div>
             <div class="reacts">
               <button class="favbtn" id="favbtn"></button>
+              <button class="favbtn sharebtn" id="sharebtn">📤 掲示板に共有</button>
               <span class="rxwrap" id="reacts"></span>
             </div>
             <div class="picker" id="picker"></div>
@@ -539,12 +713,42 @@ body.dc-mobile .s-top .spacer{display:none}
       </div>
     </section>
   </div>
+  <section class="boardv" id="boardv" hidden>
+    <div class="bl">
+      <div class="bhd"><h2>掲示板</h2><button class="bnew" id="bnew">＋ スレッドを立てる</button></div>
+      <div class="bseg" id="bseg">
+        <button data-m="all" aria-pressed="true">新着順</button>
+        <button data-m="mine" aria-pressed="false">自分が参加</button>
+        <button data-m="clips" aria-pressed="false">クリップあり</button>
+      </div>
+      <div class="blist" id="blist"></div>
+    </div>
+    <div class="bt">
+      <div class="bth" id="bth"></div>
+      <div class="bposts" id="bposts"><div class="bempty">左の一覧からスレッドを選ぶか、新しく立ててください。</div></div>
+      <div class="bcomp" id="bcomp" hidden>
+        <button class="batt" id="battach" title="クリップを貼る">🎬</button>
+        <div class="bcol"><div class="bpick" id="bpick" hidden></div>
+          <textarea id="btext" rows="1" placeholder="メッセージを書く"></textarea></div>
+        <button class="bsend" id="bsend">送信</button>
+      </div>
+    </div>
+  </section>
 </main>
+
+<div class="npanel" id="npanel" hidden>
+  <div class="nph"><b>🔔 通知</b><button id="nreadall">すべて既読にする</button></div>
+  <div class="nlist" id="nlist"></div>
+  <label class="ndm"><input type="checkbox" id="ndm"> Discord の DM にも通知する</label>
+</div>
+<div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
+<div class="toast" id="toast" hidden></div>
 
 <nav class="bnav" id="bnav">
   <button id="nav-home"><i>🏠</i><span>一覧</span></button>
   <button id="menubtn" aria-expanded="false"><i>🔍</i><span>検索・絞り込み</span><b class="mdot" id="mdot" hidden></b></button>
   <button id="nav-shorts"><i>▶</i><span>ショート</span></button>
+  <button id="nav-board"><i>💬</i><span>掲示板</span><b class="nbadge" id="nbbadge" hidden></b></button>
   <button id="nav-fav" aria-pressed="false"><i>☆</i><span>お気に入り</span></button>
 </nav>
 
@@ -626,7 +830,9 @@ async function boot(){
   const direct=shortsFromURL();
   if(!window.CV_ACTIVITY)setupApp();
   await facets();await reset();
+  startPulse();
   if(direct)await openShorts();
+  else await openFromURL();
 }
 
 // ---------------------------------------------------------------- ブラウザ版・アプリ化
@@ -702,7 +908,7 @@ function fail(){
 async function facets(){
   const f=await API.get("/api/facets");
   const mk=(host,rows,key)=>{host.innerHTML="";rows.forEach(o=>{
-    const b=document.createElement("button");b.className="tag";
+    const b=document.createElement("button");b.className="tag";b.dataset.name=o.name;
     b.setAttribute("aria-pressed",filters[key]===o.name);
     b.innerHTML=`<span>${esc(o.name)}</span><em>${o.count}</em>`;
     b.onclick=()=>{filters[key]=filters[key]===o.name?null:o.name;reset()};
@@ -719,6 +925,12 @@ function drawMyRail(){
   b.innerHTML=`<span>${onlyFav?"★":"☆"} お気に入り</span><em>${favTotal}</em>`;
   b.onclick=()=>{onlyFav=!onlyFav;reset()};
   h.appendChild(b);
+  const m=document.createElement("button");m.className="tag";
+  const mine=!!ME.name&&filters.by===ME.name;
+  m.setAttribute("aria-pressed",mine);
+  m.innerHTML=`<span>📤 自分の投稿</span>`;
+  m.onclick=()=>{filters.by=mine?null:ME.name;reset()};
+  h.appendChild(m);
 }
 
 function qs(){
@@ -749,8 +961,8 @@ function cardFor(c){
     <div class="said">${c.preview?`<span class="tc">${mmss(c.preview.t)}</span> ${hi(c.preview.text)}`:""}</div></div>
     <div class="meta"><div class="title">${hi(c.title)}</div>
     <div class="sub">${esc(c.by)} · ${c.date}${c.comments?" · 💬"+c.comments:""}</div>
-    <div class="chips">${c.game?`<span class="chip">${esc(c.game)}</span>`:""}${
-      c.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div></div>`;
+    <div class="chips">${c.game?`<span class="chip${filters.game===c.game?" hit":""}">${esc(c.game)}</span>`:""}${
+      c.tags.map(t=>`<span class="chip${filters.tag===t?" hit":""}">${esc(t)}</span>`).join("")}</div></div>`;
   b.onclick=()=>openClip(c.id);
   b.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openClip(c.id)}};
   b.querySelector(".fav").onclick=e=>{e.stopPropagation();toggleFav(c)};
@@ -769,7 +981,7 @@ async function toggleFav(c){
 }
 
 function reset(){
-  drawMenuDot();
+  drawMenuDot();drawRailState();drawFbar();
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
   pl.classList.remove("on","inline");openId=null;cur=null;
@@ -1136,6 +1348,7 @@ async function goHome(){
   // 共有中でも共有は維持する。ホストは一覧に戻る操作として扱い、
   // 参加者にもその状態が伝わる。
   if(syncRole==="follow")return;      // 追従中は操作させない
+  if(BD.on)closeBoard();
   if(vid){try{vid.pause()}catch(e){}}
   const pl=$("player");
   if(pl.parentNode===$("grid"))document.querySelector(".stage").appendChild(pl);
@@ -1444,6 +1657,7 @@ function drawShortsTop(){
 
 async function openShorts(){
   if(syncRole==="follow"&&!applying)return;
+  if(BD.on)closeBoard();closeNotif();
   if(openId)closeClip();
   SH.on=true;SH.follow=false;
   $("shorts").hidden=false;
@@ -1511,6 +1725,7 @@ function slideFor(c){
       <button class="s-talk" title="文字起こし・コメント"><i>💬</i><small>${Array.isArray(c.comments)?c.comments.length:(c.comments||0)}</small></button>
       <button class="s-cc${SH.caps?" on":""}" title="字幕 (C)"><i>字</i><small>字幕</small></button>
       <button class="s-mute" title="ミュート (M)"><i>${SH.muted?"🔇":"🔊"}</i><small>音</small></button>
+      <button class="s-share" title="掲示板に共有"><i>📤</i><small>共有</small></button>
       <button class="s-dc" title="Discord で開く"><i>↗</i><small>元投稿</small></button>
     </div>
     <div class="s-prog"><i></i></div>`;
@@ -1525,6 +1740,7 @@ function slideFor(c){
   el.querySelector(".s-cc").onclick=toggleCaps;
   el.querySelector(".s-mute").onclick=toggleMute;
   el.querySelector(".s-dc").onclick=()=>openOut(c.jump);
+  el.querySelector(".s-share").onclick=()=>{if(vid)vid.pause();openShare(c)};
   el.querySelector(".s-prog").onclick=e=>{
     if(!vid||!vid.duration)return;
     const r=e.currentTarget.getBoundingClientRect();
@@ -1886,6 +2102,7 @@ $("home").onclick=goHome;
 window.__state=()=>({query,filters,onlyFav,openId,loading,done,offset,
   items:items.length,mediaMode,instance:INSTANCE,syncRole,syncState,
   compact,phone:PHONE,menuOpen:!$("mpanel").hidden,
+  board:{on:BD.on,tid:BD.tid,mode:BD.mode,threads:BD.threads.length},
   shorts:{on:SH.on,idx:SH.idx,cur:SH.cur?SH.cur.id:null,n:SH.items.length,
           muted:SH.muted,autoMuted:!!SH.autoMuted,
           preload:SH.pre?SH.pre.getAttribute("src"):null,
@@ -1917,6 +2134,8 @@ window.addEventListener("resize",()=>{
 document.addEventListener("click",()=>
   document.querySelectorAll(".tbox.on,.picker.on").forEach(x=>x.classList.remove("on")));
 document.addEventListener("keydown",e=>{
+  if(!$("modal").hidden){if(e.key==="Escape")closeModal();return}
+  if(!$("npanel").hidden&&e.key==="Escape"){closeNotif();return}
   if(SH.on)return shortsKey(e);
   const f=/INPUT|TEXTAREA/.test(document.activeElement.tagName);
   if(e.key==="Escape"&&openId)closeClip();
@@ -1971,6 +2190,478 @@ if(COMPACT){
   else if(COMPACT.addListener)COMPACT.addListener(layout);
 }
 layout();
+// ---------------------------------------------------------------- 絞り込みの表示
+function drawRailState(){
+  [["games","game"],["tags","tag"],["members","by"]].forEach(([host,key])=>{
+    $(host).querySelectorAll(".tag").forEach(b=>
+      b.setAttribute("aria-pressed",filters[key]===b.dataset.name));
+  });
+  drawMyRail();
+}
+function drawFbar(){
+  const bar=$("fbar");
+  const chips=[];
+  if(onlyFav)chips.push(["★ お気に入り",()=>{onlyFav=false}]);
+  if(filters.by&&filters.by===ME.name)chips.push(["📤 自分の投稿",()=>{filters.by=null}]);
+  else if(filters.by)chips.push(["👤 "+filters.by,()=>{filters.by=null}]);
+  if(filters.game)chips.push(["🎮 "+filters.game,()=>{filters.game=null}]);
+  if(filters.tag)chips.push(["# "+filters.tag,()=>{filters.tag=null}]);
+  if(query)chips.push([`🔍「${query}」`,()=>{query="";$("q").value=""}]);
+  const so=$("sort");
+  if(so.value!=="new")chips.push(["並び："+so.options[so.selectedIndex].text,()=>{so.value="new"}]);
+  bar.hidden=!chips.length;
+  bar.innerHTML=chips.length?`<span class="lab">絞り込み中：</span>`:"";
+  chips.forEach(([label,off])=>{
+    const c=document.createElement("button");c.className="fchip";
+    c.innerHTML=`${esc(label)}<i>✕</i>`;c.title="この条件を外す";
+    c.onclick=()=>{off();reset()};bar.appendChild(c);
+  });
+  if(chips.length>1){
+    const a=document.createElement("button");a.className="fclear";a.textContent="すべて解除";
+    a.onclick=goHome;bar.appendChild(a);
+  }
+}
+
+// ---------------------------------------------------------------- ちょっとした部品
+function toast(msg,action,label){
+  const t=$("toast");
+  t.innerHTML=`<span>${esc(msg)}</span>`;
+  if(action){const b=document.createElement("button");b.textContent=label||"開く";
+    b.onclick=()=>{t.hidden=true;action()};t.appendChild(b)}
+  t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>{t.hidden=true},5000);
+}
+function modal(html){
+  $("mbox").innerHTML=html;$("modal").hidden=false;
+  const x=$("mbox").querySelector(".x");if(x)x.onclick=closeModal;
+  return $("mbox");
+}
+function closeModal(){$("modal").hidden=true;$("mbox").innerHTML=""}
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal()});
+const avc=id=>"c"+(Number(String(id).slice(-2))%5);
+const when=iso=>{const d=new Date(iso);if(isNaN(d))return"";
+  const p=n=>String(n).padStart(2,"0");const now=new Date();
+  const hm=`${p(d.getHours())}:${p(d.getMinutes())}`;
+  return d.toDateString()===now.toDateString()?hm:`${p(d.getMonth()+1)}-${p(d.getDate())} ${hm}`};
+const thumbOf=id=>SIGN(P()+"/thumb/"+id);
+function setBadge(el,n){el.hidden=!n;el.textContent=n>99?"99+":String(n)}
+
+// ---------------------------------------------------------------- 自動更新
+// 未読数・画面の版・リアクション数やコメント数の変化をまとめて受け取る。
+let pulseSeq=-1,pulseT=null;
+async function pulse(){
+  if(!ME||!ME.id)return;
+  let d;
+  try{d=await API.get("/api/pulse"+(pulseSeq>=0?`?since=${pulseSeq}`:""))}catch(e){return}
+  pulseSeq=d.seq;
+  setBadge($("nbadge"),d.notifications);
+  setBadge($("bbadge"),d.board);setBadge($("nbbadge"),d.board);
+  const mine=window.__UI_VERSION__;
+  if(/^\d+$/.test(mine||"")&&d.v&&d.v!==mine)$("update").hidden=false;
+  (d.changes||[]).forEach(applyCounts);
+  if(BD.on&&!BD.tid)loadThreads(true);
+}
+function applyCounts(ch){
+  const it=items.find(x=>x.id===ch.id);
+  if(it){it.stars=ch.stars;it.comments=ch.comments}
+  const el=cardEls.get(ch.id);
+  if(el){
+    const st=el.querySelector(".star");if(st)st.textContent="★"+ch.stars;
+    const sub=el.querySelector(".sub");
+    if(sub&&it)sub.textContent=`${it.by} · ${it.date}${ch.comments?" · 💬"+ch.comments:""}`;
+  }
+  if(cur&&cur.id===ch.id&&!$("ctext").value){
+    API.get("/api/clips/"+ch.id).then(d=>{
+      if(!cur||cur.id!==d.id)return;
+      cur.reactions=d.reactions;cur.discord_stars=d.discord_stars;cur.stars=d.stars;
+      cur.comments=d.comments;drawReacts();drawComments();drawMarks();
+    }).catch(()=>{});
+  }
+  if(SH.on&&SH.cur&&SH.cur.id===ch.id){
+    SH.detail.delete(ch.id);
+    detailOf(ch.id).then(d=>{
+      const el2=feed().querySelector(`.slide[data-id="${ch.id}"]`);
+      if(el2){drawFire(el2,d.reactions||{},d.discord_stars);
+        el2.querySelector(".s-talk small").textContent=d.comments.length}
+      if(SH.cur&&SH.cur.id===d.id){SH.cur=d;if(SH.sheet)drawSheet()}
+    }).catch(()=>{});
+  }
+}
+function startPulse(){
+  clearInterval(pulseT);pulseT=setInterval(pulse,20000);pulse();
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pulse()});
+
+// ---------------------------------------------------------------- 通知
+async function openNotif(){
+  closeMenu();
+  const pn=$("npanel");
+  if(!pn.hidden){closeNotif();return}
+  pn.hidden=false;$("bellbtn").setAttribute("aria-expanded","true");
+  $("nlist").innerHTML=`<div class="nnone">読み込み中…</div>`;
+  let d;
+  try{d=await API.get("/api/notifications")}catch(e){$("nlist").innerHTML=`<div class="nnone">読み込めませんでした</div>`;return}
+  $("ndm").checked=!!d.dm;
+  setBadge($("nbadge"),d.unread);
+  drawNotif(d.items);
+}
+function closeNotif(){$("npanel").hidden=true;$("bellbtn").setAttribute("aria-expanded","false")}
+function notifText(n){
+  const who=`<b>${esc(n.actors.length>1?`${n.actors[n.actors.length-1]} ほか${n.actors.length-1}人`:n.actor)}</b>`;
+  const clip=n.clip_title?`「${esc(n.clip_title)}」`:"";
+  const th=`「${esc(n.thread_title)}」`;
+  if(n.kind==="comment")return `${who} があなたのクリップ${clip}にコメント`;
+  if(n.kind==="reply")return `${who} が掲示板${th}に返信`;
+  if(n.kind==="share")return `${who} があなたのクリップ${clip}を掲示板${th}に共有`;
+  return `${who} があなたのクリップ${clip}にリアクション ${esc(n.body||"")}`;
+}
+function drawNotif(list){
+  const h=$("nlist");h.innerHTML="";
+  if(!list.length){h.innerHTML=`<div class="nnone">まだ通知はありません。<br>自分のクリップにコメントや共有があるとここに届きます。</div>`;return}
+  list.forEach(n=>{
+    const b=document.createElement("button");b.className="ni"+(n.read?"":" new");
+    const pic=n.clip_id&&n.kind!=="reply"?`<img class="th" src="${thumbOf(n.clip_id)}" alt="">`
+      :`<span class="ic">${n.kind==="reply"?"💬":n.kind==="reaction"?"🔥":"📤"}</span>`;
+    const quote=n.body&&n.kind!=="reaction"?`<q>${esc(n.body.slice(0,120))}</q>`:"";
+    const tag=n.kind==="reply"||n.kind==="share"?"掲示板":n.kind==="comment"?("💬"+(n.at!=null?" "+mmss(n.at):"")):"";
+    b.innerHTML=`${pic}<div class="tx">${notifText(n)}${quote}<div class="tm">${tag?tag+" · ":""}${ago(n.created_at)}</div></div>`;
+    b.onclick=()=>goNotif(n);
+    h.appendChild(b);
+  });
+}
+async function goNotif(n){
+  closeNotif();
+  if(!n.read)API.send("POST","/api/notifications/read",{ids:[n.id]}).then(r=>setBadge($("nbadge"),r.unread)).catch(()=>{});
+  if((n.kind==="reply"||n.kind==="share")&&n.thread_id)return openBoard(n.thread_id);
+  if(n.clip_id)return openClipById(n.clip_id,n.kind==="comment"?"c":"t");
+}
+$("bellbtn").onclick=e=>{e.stopPropagation();openNotif()};
+$("npanel").addEventListener("click",e=>e.stopPropagation());
+document.addEventListener("click",()=>{if(!$("npanel").hidden)closeNotif()});
+$("nreadall").onclick=async()=>{
+  const r=await API.send("POST","/api/notifications/read",{});
+  setBadge($("nbadge"),r.unread);
+  $("nlist").querySelectorAll(".ni.new").forEach(x=>x.classList.remove("new"));
+};
+$("ndm").onchange=async e=>{
+  try{const r=await API.send("POST","/api/settings",{dm:e.target.checked});
+    e.target.checked=!!r.dm;
+    toast(r.dm?"Discord の DM にも通知します":"DM への通知をやめました");
+  }catch(err){e.target.checked=!e.target.checked}
+};
+
+// 一覧に無いクリップでも開けるようにする（通知・掲示板から）
+async function openClipById(id,tabKey){
+  if(SH.on)closeShorts();
+  if(BD.on)closeBoard();
+  if(!cardEls.get(id)){
+    try{
+      const d=await API.get("/api/clips/"+id);
+      const brief={...d,comments:d.comments.length,preview:null};
+      items.unshift(brief);
+      $("grid").prepend(cardFor(brief));
+    }catch(e){toast("クリップが見つかりませんでした");return}
+  }
+  await openClip(id);
+  if(tabKey)tab(tabKey);
+}
+
+// ---------------------------------------------------------------- 掲示板
+const BD={on:false,mode:"all",tid:null,last:0,poll:null,pick:null,threads:[],thread:null};
+
+async function openBoard(tid){
+  if(SH.on)closeShorts();
+  if(openId)closeClip();
+  closeMenu();closeNotif();
+  BD.on=true;document.body.classList.add("board-on");
+  $("boardv").hidden=false;
+  $("boardbtn").setAttribute("aria-pressed","true");
+  $("nav-board").setAttribute("aria-pressed","true");
+  await loadThreads();
+  if(tid)await openThread(tid);
+  else if(!compact&&BD.threads.length&&!BD.tid)await openThread(BD.threads[0].id);
+}
+function closeBoard(){
+  BD.on=false;BD.tid=null;clearInterval(BD.poll);
+  document.body.classList.remove("board-on");
+  $("boardv").hidden=true;$("boardv").classList.remove("in-thread");
+  $("boardbtn").setAttribute("aria-pressed","false");
+  $("nav-board").setAttribute("aria-pressed","false");
+}
+async function loadThreads(quiet){
+  let d;
+  try{d=await API.get(`/api/board/threads?mode=${BD.mode}`)}catch(e){if(!quiet)$("blist").innerHTML=`<div class="bempty">読み込めませんでした</div>`;return}
+  BD.threads=d.items;drawThreads();
+}
+function drawThreads(){
+  const h=$("blist");h.innerHTML="";
+  if(!BD.threads.length){
+    h.innerHTML=`<div class="bempty">${BD.mode==="all"?"まだスレッドがありません。<br>「＋ スレッドを立てる」から始めましょう。":"該当するスレッドはありません。"}</div>`;return}
+  BD.threads.forEach(t=>{
+    const b=document.createElement("button");b.className="ti"+(t.id===BD.tid?" cur":"");
+    b.dataset.id=t.id;
+    const cover=t.cover?`<span class="tb v"><img src="${thumbOf(t.cover)}" alt="" loading="lazy"></span>`:`<span class="tb">🗒</span>`;
+    b.innerHTML=`${cover}<div style="flex:1;min-width:0"><div class="tt">${esc(t.title)}</div>
+      <div class="pv">${t.last?esc(t.last.user)+"："+esc(t.last.text):""}</div>
+      <div class="mt"><span>💬 ${t.posts}</span>${t.videos?`<span>🎬 ${t.videos}</span>`:""}<span>${ago(t.updated_at)}</span></div></div>
+      ${t.unread?`<span class="ub">${t.unread}</span>`:""}`;
+    b.onclick=()=>openThread(t.id);
+    h.appendChild(b);
+  });
+}
+$("bseg").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  BD.mode=b.dataset.m;
+  $("bseg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  loadThreads();
+});
+
+async function openThread(tid){
+  let d;
+  try{d=await API.get(`/api/board/threads/${tid}`)}catch(e){toast("スレッドが見つかりませんでした");BD.tid=null;return loadThreads()}
+  BD.tid=tid;BD.thread=d.thread;BD.last=d.posts.length?d.posts[d.posts.length-1].id:0;
+  $("boardv").classList.add("in-thread");
+  drawThreadHead();
+  const h=$("bposts");h.innerHTML="";
+  d.posts.forEach(p=>h.appendChild(postEl(p)));
+  if(!d.posts.length)h.innerHTML=`<div class="bempty">まだ書き込みがありません。</div>`;
+  $("bcomp").hidden=false;
+  h.scrollTop=h.scrollHeight;
+  const t=BD.threads.find(x=>x.id===tid);if(t)t.unread=0;
+  drawThreads();pulse();
+  clearInterval(BD.poll);BD.poll=setInterval(pollThread,5000);
+}
+function drawThreadHead(){
+  const t=BD.thread;
+  $("bth").innerHTML=`<button class="bk" id="bback" title="一覧へ">‹</button>
+    <div style="min-width:0"><h3>${esc(t.title)}</h3><small>${esc(t.creator)} が作成 · 参加 ${t.participants}人</small></div>
+    ${t.mine?`<div class="ops"><button id="brename">✎ タイトル</button><button id="bdel">🗑 削除</button></div>`:""}`;
+  $("bback").onclick=()=>{BD.tid=null;clearInterval(BD.poll);$("boardv").classList.remove("in-thread");
+    $("bth").innerHTML="";$("bcomp").hidden=true;loadThreads()};
+  if(t.mine){
+    $("brename").onclick=renameThread;
+    $("bdel").onclick=async()=>{
+      if(!confirm(`スレッド「${t.title}」を削除します。書き込みもすべて消えます。`))return;
+      await API.send("DELETE",`/api/board/threads/${t.id}`);
+      toast("スレッドを削除しました");$("bback").onclick();
+    };
+  }
+}
+function renameThread(){
+  const t=BD.thread;
+  const box=modal(`<h3>タイトルを変更<button class="x">✕</button></h3>
+    <input type="text" id="mtitle" maxlength="90" value="${esc(t.title).replace(/"/g,"&quot;")}">
+    <button class="primary" id="mok">変更する</button><div class="merr" id="merr"></div>`);
+  box.querySelector("#mok").onclick=async()=>{
+    const v=box.querySelector("#mtitle").value.trim();if(!v)return;
+    try{const r=await API.send("PATCH",`/api/board/threads/${t.id}`,{title:v});
+      t.title=r.title;drawThreadHead();loadThreads(true);closeModal()}
+    catch(e){box.querySelector("#merr").textContent="変更できませんでした"}
+  };
+}
+async function pollThread(){
+  if(!BD.on||!BD.tid)return;
+  let d;
+  try{d=await API.get(`/api/board/threads/${BD.tid}?after=${BD.last}`)}catch(e){return}
+  if(!d.posts.length)return;
+  const h=$("bposts");const atBottom=h.scrollHeight-h.scrollTop-h.clientHeight<80;
+  h.querySelector(".bempty")?.remove();
+  d.posts.forEach(p=>{if(!h.querySelector(`.bp[data-id="${p.id}"]`))h.appendChild(postEl(p))});
+  BD.last=d.posts[d.posts.length-1].id;
+  if(atBottom)h.scrollTop=h.scrollHeight;
+}
+function postEl(p){
+  const el=document.createElement("div");el.className="bp";el.dataset.id=p.id;
+  const own=p.user_id===ME.id;
+  el.innerHTML=`<span class="av ${avc(p.user_id)}">${esc((p.user||"?")[0])}</span><div class="pb">
+    <div class="ph"><b>${esc(p.user)}</b><span>${when(p.created_at)}${p.edited_at?" · 編集済み":""}</span>
+      ${own?`<span class="own"><button class="ed">編集</button><button class="dl">削除</button></span>`:""}</div>
+    ${p.body?`<div class="txt">${esc(p.body)}</div>`:""}</div>`;
+  const pb=el.querySelector(".pb");
+  if(p.clip)pb.appendChild(clipCard(p.clip));
+  if(p.video){const v=document.createElement("video");v.className="bvid";v.controls=true;
+    v.preload="metadata";v.playsInline=true;v.src=SIGN(P()+p.video.src);pb.appendChild(v)}
+  if(own){
+    el.querySelector(".ed").onclick=()=>editPost(p,el);
+    el.querySelector(".dl").onclick=async()=>{
+      if(!confirm("この書き込みを削除しますか？"))return;
+      await API.send("DELETE",`/api/board/posts/${p.id}`);el.remove();
+    };
+  }
+  return el;
+}
+function clipCard(c){
+  const b=document.createElement("div");b.className="ccard";
+  b.innerHTML=`<div class="cth"><img src="${thumbOf(c.id)}" alt="" loading="lazy"><span class="pl">▶</span>
+    <span class="d">${mmss(c.duration||0)}</span></div>
+    <div class="ci"><div style="min-width:0">${esc(c.title)}<small>${esc(c.by)}${c.game?" · "+esc(c.game):""} · ★${c.stars||0}</small></div>
+    <button class="open">詳しく ›</button></div>`;
+  b.querySelector(".cth").onclick=async()=>{
+    const box=b.querySelector(".cth");
+    if(box.querySelector("video"))return;
+    let d;try{d=await API.get("/api/clips/"+c.id)}catch(e){return}
+    const v=document.createElement("video");v.controls=true;v.autoplay=true;v.playsInline=true;
+    v.src=mediaSrc(d);
+    v.onerror=()=>{if(!window.CV_ACTIVITY&&d.cdn&&v.getAttribute("src")===d.cdn){v.src=freshSrc(d);v.play().catch(()=>{})}
+      else if(window.CV_ACTIVITY&&!v.dataset.s){v.dataset.s=1;v.src=streamSrc(d);v.play().catch(()=>{})}};
+    box.innerHTML="";box.appendChild(v);v.play().catch(()=>{});
+  };
+  b.querySelector(".open").onclick=e=>{e.stopPropagation();openClipById(c.id,"c")};
+  return b;
+}
+function editPost(p,el){
+  const box=modal(`<h3>書き込みを編集<button class="x">✕</button></h3>
+    <textarea id="medit" rows="4">${esc(p.body)}</textarea>
+    <button class="primary" id="mok">保存する</button><div class="merr" id="merr"></div>`);
+  box.querySelector("#mok").onclick=async()=>{
+    try{const r=await API.send("PATCH",`/api/board/posts/${p.id}`,{body:box.querySelector("#medit").value});
+      el.replaceWith(postEl(r.post));closeModal()}
+    catch(e){box.querySelector("#merr").textContent="保存できませんでした"}
+  };
+}
+
+// 書き込み欄
+function drawPick(){
+  const h=$("bpick");
+  if(!BD.pick){h.hidden=true;h.innerHTML="";return}
+  h.hidden=false;
+  h.innerHTML=`<img src="${thumbOf(BD.pick.id)}" alt=""><span>🎬 ${esc(BD.pick.title)}</span><button title="外す">✕</button>`;
+  h.querySelector("button").onclick=()=>{BD.pick=null;drawPick()};
+}
+async function sendPost(){
+  const text=$("btext").value.trim();
+  if(!text&&!BD.pick)return;
+  $("bsend").disabled=true;
+  try{
+    const r=await API.send("POST",`/api/board/threads/${BD.tid}/posts`,{body:text,clip_id:BD.pick?BD.pick.id:null});
+    const h=$("bposts");h.querySelector(".bempty")?.remove();
+    h.appendChild(postEl(r.post));BD.last=Math.max(BD.last,r.post.id);
+    h.scrollTop=h.scrollHeight;
+    $("btext").value="";BD.pick=null;drawPick();autoGrow($("btext"));
+  }catch(e){toast("送信できませんでした")}
+  finally{$("bsend").disabled=false}
+}
+function autoGrow(t){t.style.height="auto";t.style.height=Math.min(t.scrollHeight,140)+"px"}
+$("bsend").onclick=sendPost;
+$("btext").addEventListener("input",e=>autoGrow(e.target));
+$("btext").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&!compact){e.preventDefault();sendPost()}
+});
+$("battach").onclick=()=>pickClip(c=>{BD.pick=c;drawPick()});
+
+// クリップを選ぶ
+function pickClip(done){
+  const box=modal(`<h3>🎬 クリップを選ぶ<button class="x">✕</button></h3>
+    <input type="text" id="mq" placeholder="タイトル・タグ・セリフで検索" autocomplete="off">
+    <div class="pickl" id="mpl"><div class="nnone">読み込み中…</div></div>`);
+  let t=null;
+  const run=async()=>{
+    const q=box.querySelector("#mq").value.trim();
+    let d;try{d=await API.get(`/api/clips?limit=40&sort=new${q?"&q="+encodeURIComponent(q):""}`)}catch(e){return}
+    const h=box.querySelector("#mpl");if(!h)return;h.innerHTML="";
+    if(!d.items.length){h.innerHTML=`<div class="nnone">見つかりませんでした</div>`;return}
+    d.items.forEach(c=>{const b=document.createElement("button");
+      b.innerHTML=`<img src="${thumbOf(c.id)}" alt="" loading="lazy"><div style="min-width:0"><b>${esc(c.title)}</b><small>${esc(c.by)} · ${mmss(c.duration)}${c.game?" · "+esc(c.game):""}</small></div>`;
+      b.onclick=()=>{closeModal();done({id:c.id,title:c.title,by:c.by,duration:c.duration})};h.appendChild(b)});
+  };
+  box.querySelector("#mq").oninput=()=>{clearTimeout(t);t=setTimeout(run,250)};
+  run();
+}
+
+// 新しいスレッド
+function newThread(pre){
+  let pick=pre||null;
+  const box=modal(`<h3>＋ スレッドを立てる<button class="x">✕</button></h3>
+    <div class="lab">タイトル</div><input type="text" id="mtitle" maxlength="90" placeholder="例：週末ランクの振り返り">
+    <div class="lab">最初の書き込み</div><textarea id="mbody" rows="3" placeholder="話したいこと"></textarea>
+    <div class="lab">クリップ（任意）</div><div id="mclip"></div>
+    <button class="primary" id="mok">立てる</button><div class="merr" id="merr"></div>`);
+  const drawC=()=>{
+    const h=box.querySelector("#mclip");
+    h.innerHTML=pick?`<div class="bpick"><img src="${thumbOf(pick.id)}" alt=""><span>🎬 ${esc(pick.title)}</span><button>✕</button></div>`
+      :`<button class="opt" id="mpick">🎬 クリップを選ぶ</button>`;
+    if(pick)h.querySelector("button").onclick=()=>{pick=null;drawC()};
+    else h.querySelector("#mpick").onclick=()=>{
+      const keep={t:box.querySelector("#mtitle").value,b:box.querySelector("#mbody").value};
+      pickClip(c=>{pick=c;newThreadRestore(keep,pick)});
+    };
+  };
+  drawC();
+  box.querySelector("#mok").onclick=async()=>{
+    const title=box.querySelector("#mtitle").value.trim(),body=box.querySelector("#mbody").value.trim();
+    if(!title){box.querySelector("#merr").textContent="タイトルを入れてください";return}
+    if(!body&&!pick){box.querySelector("#merr").textContent="書き込みかクリップを入れてください";return}
+    try{const r=await API.send("POST","/api/board/threads",{title,body,clip_id:pick?pick.id:null});
+      closeModal();BD.mode="all";await openBoard(r.id)}
+    catch(e){box.querySelector("#merr").textContent="作れませんでした"}
+  };
+  setTimeout(()=>box.querySelector("#mtitle").focus(),50);
+}
+function newThreadRestore(keep,pick){
+  newThread(pick);
+  const box=$("mbox");
+  box.querySelector("#mtitle").value=keep.t||pick.title||"";
+  box.querySelector("#mbody").value=keep.b||"";
+}
+$("bnew").onclick=()=>newThread();
+
+// ---------------------------------------------------------------- 掲示板に共有
+async function openShare(c){
+  const clip={id:c.id,title:c.title,by:c.by,duration:c.duration};
+  const box=modal(`<h3>📤 掲示板に共有<button class="x">✕</button></h3>
+    <div class="mini"><img src="${thumbOf(clip.id)}" alt=""><div><b>${esc(clip.title)}</b><small>${esc(clip.by)} · ${mmss(clip.duration||0)}</small></div></div>
+    <button class="opt" data-t="new" aria-pressed="true"><span class="r"></span>＋ この動画で新しいスレッドを立てる</button>
+    <input type="text" id="mtitle" maxlength="90">
+    <div class="lab">既存のスレッドに投稿</div>
+    <div class="optlist" id="mthreads"><div class="nnone">読み込み中…</div></div>
+    <div class="lab">ひとこと（任意）</div><textarea id="mbody" rows="2"></textarea>
+    <button class="primary" id="mok">共有する</button><div class="merr" id="merr"></div>`);
+  box.querySelector("#mtitle").value=clip.title;
+  let target="new";
+  const select=t=>{target=t;
+    box.querySelectorAll(".opt[data-t]").forEach(o=>o.setAttribute("aria-pressed",o.dataset.t===String(t)));
+    box.querySelector("#mtitle").style.display=t==="new"?"":"none"};
+  box.querySelector('.opt[data-t="new"]').onclick=()=>select("new");
+  try{
+    const d=await API.get("/api/board/threads?mode=all");
+    const h=box.querySelector("#mthreads");if(!h)return;h.innerHTML="";
+    if(!d.items.length)h.innerHTML=`<div class="nnone">まだスレッドがありません</div>`;
+    d.items.slice(0,30).forEach(t=>{const b=document.createElement("button");b.className="opt";
+      b.dataset.t=t.id;b.setAttribute("aria-pressed","false");
+      b.innerHTML=`<span class="r"></span><span class="t">${esc(t.title)}</span><small>${ago(t.updated_at)}</small>`;
+      b.onclick=()=>select(t.id);h.appendChild(b)});
+  }catch(e){}
+  box.querySelector("#mok").onclick=async()=>{
+    const body=box.querySelector("#mbody").value.trim();
+    box.querySelector("#mok").disabled=true;
+    try{
+      let tid;
+      if(target==="new"){
+        const title=box.querySelector("#mtitle").value.trim()||clip.title;
+        tid=(await API.send("POST","/api/board/threads",{title,body,clip_id:clip.id})).id;
+      }else{
+        tid=Number(target);
+        await API.send("POST",`/api/board/threads/${tid}/posts`,{body,clip_id:clip.id});
+      }
+      closeModal();
+      toast("掲示板に共有しました",()=>openBoard(tid),"見に行く");
+    }catch(e){box.querySelector("#merr").textContent="共有できませんでした";box.querySelector("#mok").disabled=false}
+  };
+}
+$("sharebtn").onclick=()=>{if(cur)openShare(cur)};
+
+$("boardbtn").onclick=()=>BD.on?closeBoard():openBoard();
+$("nav-board").onclick=()=>{closeMenu();BD.on&&!BD.tid?closeBoard():openBoard()};
+
+// 通知や DM のリンク（?clip= / ?board=）から開く
+async function openFromURL(){
+  const u=new URL(location.href);
+  const clip=u.searchParams.get("clip"),th=u.searchParams.get("board"),tb=u.searchParams.get("tab");
+  if(!clip&&!th)return;
+  ["clip","board","tab"].forEach(k=>u.searchParams.delete(k));
+  try{history.replaceState(null,"",u.pathname+(u.search||"")+u.hash)}catch(e){}
+  if(th)await openBoard(Number(th));
+  else await openClipById(Number(clip),tb==="c"?"c":null);
+}
+
 window.__start = boot;
 
 </script>
